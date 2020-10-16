@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -92,7 +92,6 @@ typedef struct
 	cl_float4 old_z;
 	// cl_float4 sum_z;
 	cl_float pos_neg;
-	cl_float cw;
 
 	cl_float r;
 	cl_float DE;
@@ -107,7 +106,6 @@ typedef struct
 	cl_float colorHybrid;
 
 	cl_float temp1000;
-	cl_float addDist;
 } sExtendedAuxCl;
 
 typedef struct
@@ -361,6 +359,18 @@ typedef struct
 	enumMulti_orderOfTransfCl orderOfTransf5;
 } sFractalMagTransformsCl;
 
+// combo3
+typedef enum
+{
+	multi_combo3Cl_type1,
+	multi_combo3Cl_type2,
+	multi_combo3Cl_type3,
+} enumMulti_combo3Cl;
+typedef struct
+{
+	enumMulti_combo3Cl combo3;
+} sFractalCombo3Cl;
+
 // combo4
 typedef enum
 {
@@ -490,10 +500,13 @@ typedef struct
 typedef struct
 {
 	cl_float angle0;
+	cl_float angle72;
 	cl_float alphaAngleOffset;
 	cl_float betaAngleOffset;
 	cl_float foldingValue;
 	cl_float foldingLimit;
+	cl_float invert0;
+	cl_float invert1;
 	cl_float offset;
 	cl_float offset0;
 	cl_float offsetA0;
@@ -504,8 +517,11 @@ typedef struct
 	cl_float offsetF0;
 	cl_float offsetR0;
 	cl_float offset0005;
+	cl_float offsetp05;
+	cl_float offset01;
 	cl_float offset05;
 	cl_float offsetA05;
+	cl_float offsetB05;
 	cl_float offset1;
 	cl_float offsetA1;
 	cl_float offsetR1;
@@ -550,6 +566,7 @@ typedef struct
 	cl_float scaleA3;
 	cl_float scaleB3;
 	cl_float scale4;
+	cl_float scale6;
 	cl_float scale8;
 	cl_float scaleMain2;
 	cl_float scaleVary0;
@@ -560,6 +577,8 @@ typedef struct
 	cl_float pwr8a;
 	cl_float sqtR;
 	cl_float mboxFactor1;
+	cl_float inv0;
+	cl_float inv1;
 
 	cl_int startIterations;
 	cl_int startIterations250;
@@ -625,6 +644,8 @@ typedef struct
 	cl_int intA;
 	cl_int intB;
 	cl_int int1;
+	cl_int intA1;
+	cl_int intB1;
 	cl_int int2;
 	cl_int int3;
 	cl_int int3X;
@@ -675,6 +696,7 @@ typedef struct
 	cl_float4 offsetA200;
 	cl_float4 offset222;
 	cl_float4 offsetA222;
+	cl_float4 offset333;
 	cl_float4 power025;
 	cl_float4 power8;
 	cl_float4 vec111;
@@ -699,6 +721,7 @@ typedef struct
 	cl_float4 additionConstant0000;
 	cl_float4 offset0000;
 	cl_float4 offsetA0000;
+	cl_float4 offsetp5555;
 	cl_float4 offset1111;
 	cl_float4 offsetA1111;
 	cl_float4 offsetB1111;
@@ -806,6 +829,7 @@ typedef struct
 	sFractalCparaCl Cpara;
 	sFractalComboCl combo;
 	sFractalASurf3FoldsCl aSurf3Folds;
+	sFractalCombo3Cl combo3;
 	sFractalCombo4Cl combo4;
 	sFractalCombo5Cl combo5;
 	sFractalCombo6Cl combo6;
@@ -827,7 +851,6 @@ inline sExtendedAuxCl clCopySExtendedAuxCl(const sExtendedAux &source)
 	target.const_c = toClFloat4(source.const_c);
 	target.old_z = toClFloat4(source.old_z);
 	target.pos_neg = source.pos_neg;
-	target.cw = source.cw;
 	target.r = source.r;
 	target.DE = source.DE;
 	target.DE0 = source.DE0;
@@ -838,7 +861,6 @@ inline sExtendedAuxCl clCopySExtendedAuxCl(const sExtendedAux &source)
 	target.color = source.color;
 	target.colorHybrid = source.colorHybrid;
 	target.temp1000 = source.temp1000;
-	target.addDist = source.addDist;
 	return target;
 }
 
@@ -1116,6 +1138,13 @@ inline sFractalMagTransformsCl clCopySFractalMagTransformsCl(const sFractalMagTr
 	return target;
 }
 
+inline sFractalCombo3Cl clCopySFractalCombo3Cl(const sFractalCombo3 &source)
+{
+	sFractalCombo3Cl target;
+	target.combo3 = enumMulti_combo3Cl(source.combo3);
+	return target;
+}
+
 inline sFractalCombo4Cl clCopySFractalCombo4Cl(const sFractalCombo4 &source)
 {
 	sFractalCombo4Cl target;
@@ -1217,10 +1246,13 @@ inline sFractalTransformCommonCl clCopySFractalTransformCommonCl(
 {
 	sFractalTransformCommonCl target;
 	target.angle0 = source.angle0;
+	target.angle72 = source.angle72;
 	target.alphaAngleOffset = source.alphaAngleOffset;
 	target.betaAngleOffset = source.betaAngleOffset;
 	target.foldingValue = source.foldingValue;
 	target.foldingLimit = source.foldingLimit;
+	target.invert0 = source.invert0;
+	target.invert1 = source.invert1;
 	target.offset = source.offset;
 	target.offset0 = source.offset0;
 	target.offsetA0 = source.offsetA0;
@@ -1231,8 +1263,11 @@ inline sFractalTransformCommonCl clCopySFractalTransformCommonCl(
 	target.offsetF0 = source.offsetF0;
 	target.offsetR0 = source.offsetR0;
 	target.offset0005 = source.offset0005;
+	target.offsetp05 = source.offsetp05;
+	target.offset01 = source.offset01;
 	target.offset05 = source.offset05;
 	target.offsetA05 = source.offsetA05;
+	target.offsetB05 = source.offsetB05;
 	target.offset1 = source.offset1;
 	target.offsetA1 = source.offsetA1;
 	target.offsetR1 = source.offsetR1;
@@ -1277,6 +1312,7 @@ inline sFractalTransformCommonCl clCopySFractalTransformCommonCl(
 	target.scaleA3 = source.scaleA3;
 	target.scaleB3 = source.scaleB3;
 	target.scale4 = source.scale4;
+	target.scale6 = source.scale6;
 	target.scale8 = source.scale8;
 	target.scaleMain2 = source.scaleMain2;
 	target.scaleVary0 = source.scaleVary0;
@@ -1286,6 +1322,8 @@ inline sFractalTransformCommonCl clCopySFractalTransformCommonCl(
 	target.pwr8a = source.pwr8a;
 	target.sqtR = source.sqtR;
 	target.mboxFactor1 = source.mboxFactor1;
+	target.inv0 = source.inv0;
+	target.inv1 = source.inv1;
 	target.startIterations = source.startIterations;
 	target.startIterations250 = source.startIterations250;
 	target.stopIterations = source.stopIterations;
@@ -1348,6 +1386,8 @@ inline sFractalTransformCommonCl clCopySFractalTransformCommonCl(
 	target.intA = source.intA;
 	target.intB = source.intB;
 	target.int1 = source.int1;
+	target.intA1 = source.intA1;
+	target.intB1 = source.intB1;
 	target.int2 = source.int2;
 	target.int3 = source.int3;
 	target.int3X = source.int3X;
@@ -1397,6 +1437,7 @@ inline sFractalTransformCommonCl clCopySFractalTransformCommonCl(
 	target.offsetA200 = toClFloat4(source.offsetA200);
 	target.offset222 = toClFloat4(source.offset222);
 	target.offsetA222 = toClFloat4(source.offsetA222);
+	target.offset333 = toClFloat4(source.offset333);
 	target.power025 = toClFloat4(source.power025);
 	target.power8 = toClFloat4(source.power8);
 	target.vec111 = toClFloat4(source.vec111);
@@ -1418,6 +1459,7 @@ inline sFractalTransformCommonCl clCopySFractalTransformCommonCl(
 	target.additionConstant0000 = toClFloat4(source.additionConstant0000);
 	target.offset0000 = toClFloat4(source.offset0000);
 	target.offsetA0000 = toClFloat4(source.offsetA0000);
+	target.offsetp5555 = toClFloat4(source.offsetp5555);
 	target.offset1111 = toClFloat4(source.offset1111);
 	target.offsetA1111 = toClFloat4(source.offsetA1111);
 	target.offsetB1111 = toClFloat4(source.offsetB1111);
@@ -1521,6 +1563,7 @@ inline sFractalCl clCopySFractalCl(const sFractal &source)
 	target.Cpara = clCopySFractalCparaCl(source.Cpara);
 	target.combo = clCopySFractalComboCl(source.combo);
 	target.aSurf3Folds = clCopySFractalASurf3FoldsCl(source.aSurf3Folds);
+	target.combo3 = clCopySFractalCombo3Cl(source.combo3);
 	target.combo4 = clCopySFractalCombo4Cl(source.combo4);
 	target.combo5 = clCopySFractalCombo5Cl(source.combo5);
 	target.combo6 = clCopySFractalCombo6Cl(source.combo6);

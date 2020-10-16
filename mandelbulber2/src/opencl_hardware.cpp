@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,9 +34,12 @@
 
 #include "opencl_hardware.h"
 
+#include <QCryptographicHash>
+#include <QDebug>
+
 #include "error_message.hpp"
 #include "opencl_device.h"
-#include "system.hpp"
+#include "write_log.hpp"
 
 cOpenClHardware::cOpenClHardware(QObject *parent) : QObject(parent)
 {
@@ -72,10 +75,6 @@ cOpenClHardware::~cOpenClHardware()
 {
 #ifdef USE_OPENCL
 	// deleting existing contexts
-	for (cl::Context *context : contexts)
-	{
-		if (context) delete context;
-	}
 	contexts.clear();
 #endif
 }
@@ -150,10 +149,6 @@ void cOpenClHardware::CreateContext(
 				CL_CONTEXT_PLATFORM, cl_context_properties((clPlatforms[platformIndex])()), 0};
 
 			// deleting existing contexts
-			for (cl::Context *context : contexts)
-			{
-				if (context) delete context;
-			}
 			contexts.clear();
 			contexts.resize(1);
 			contextReady = false;
@@ -173,24 +168,24 @@ void cOpenClHardware::CreateContext(
 				switch (deviceType)
 				{
 					case cOpenClDevice::openClDeviceTypeACC:
-						contexts[contextIndex] =
-							new cl::Context(CL_DEVICE_TYPE_ACCELERATOR, cProps, nullptr, nullptr, &err);
+						contexts[contextIndex].reset(
+							new cl::Context(CL_DEVICE_TYPE_ACCELERATOR, cProps, nullptr, nullptr, &err));
 						break;
 					case cOpenClDevice::openClDeviceTypeALL:
-						contexts[contextIndex] =
-							new cl::Context(CL_DEVICE_TYPE_ALL, cProps, nullptr, nullptr, &err);
+						contexts[contextIndex].reset(
+							new cl::Context(CL_DEVICE_TYPE_ALL, cProps, nullptr, nullptr, &err));
 						break;
 					case cOpenClDevice::openClDeviceTypeCPU:
-						contexts[contextIndex] =
-							new cl::Context(CL_DEVICE_TYPE_CPU, cProps, nullptr, nullptr, &err);
+						contexts[contextIndex].reset(
+							new cl::Context(CL_DEVICE_TYPE_CPU, cProps, nullptr, nullptr, &err));
 						break;
 					case cOpenClDevice::openClDeviceTypeDEF:
-						contexts[contextIndex] =
-							new cl::Context(CL_DEVICE_TYPE_DEFAULT, cProps, nullptr, nullptr, &err);
+						contexts[contextIndex].reset(
+							new cl::Context(CL_DEVICE_TYPE_DEFAULT, cProps, nullptr, nullptr, &err));
 						break;
 					case cOpenClDevice::openClDeviceTypeGPU:
-						contexts[contextIndex] =
-							new cl::Context(CL_DEVICE_TYPE_GPU, cProps, nullptr, nullptr, &err);
+						contexts[contextIndex].reset(
+							new cl::Context(CL_DEVICE_TYPE_GPU, cProps, nullptr, nullptr, &err));
 						break;
 				}
 

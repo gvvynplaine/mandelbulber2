@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -46,11 +46,14 @@
 #include "src/common_math.h"
 #include "src/global_data.hpp"
 #include "src/interface.hpp"
+#include "src/opencl_engine_render_fractal.h"
 #include "src/render_job.hpp"
 #include "src/rendering_configuration.hpp"
 #include "src/settings.hpp"
 #include "src/stereo.h"
-#include "src/system.hpp"
+#include "src/system_data.hpp"
+#include "src/system_directories.hpp"
+#include "src/wait.hpp"
 
 cThumbnailWidget::cThumbnailWidget(QWidget *parent) : QWidget(parent)
 {
@@ -66,22 +69,22 @@ cThumbnailWidget::cThumbnailWidget(int _width, int _height, int _oversample, QWi
 
 void cThumbnailWidget::Init(QWidget *parent)
 {
-	image = nullptr;
 	tWidth = 0;
 	tHeight = 0;
 	oversample = 0;
 	progressBar = nullptr;
 	stopRequest = false;
 	isRendered = false;
+	isFullyRendered = false;
 	hasParameters = false;
 	disableTimer = false;
 	disableThumbnailCache = false;
 	connect(this, SIGNAL(renderRequest()), this, SLOT(slotRender()));
-	params = new cParameterContainer;
-	fractal = new cFractalContainer;
+	params.reset(new cParameterContainer);
+	fractal.reset(new cFractalContainer);
 	useOneCPUCore = false;
 
-	timer = new QTimer(parent);
+	timer = new QTimer(this);
 	timer->setSingleShot(true);
 	connect(timer, SIGNAL(timeout()), this, SLOT(slotRandomRender()));
 
@@ -97,7 +100,7 @@ void cThumbnailWidget::SetSize(int _width, int _height, int _oversample)
 	tWidth = _width;
 	tHeight = _height;
 	oversample = _oversample;
-	image = new cImage(tWidth * oversample, tHeight * oversample, true);
+	image.reset(new cImage(tWidth * oversample, tHeight * oversample, true));
 	image->CreatePreview(1.0 / oversample, tWidth, tWidth, this);
 	setFixedWidth(tWidth);
 	setFixedHeight(tHeight);
@@ -112,11 +115,9 @@ cThumbnailWidget::~cThumbnailWidget()
 		while (image->IsUsed())
 		{
 		}
-		delete image;
+		image.reset();
 		// qDebug() << "cThumbnailWidget image deleted" << instanceIndex;
 	}
-	if (params) delete params;
-	if (fractal) delete fractal;
 
 	instanceCount--;
 	// qDebug() << "cThumbnailWidget destructed" << instanceIndex;
@@ -133,35 +134,64 @@ void cThumbnailWidget::paintEvent(QPaintEvent *event)
 			{
 				isRendered = true;
 				timer->stop();
-				emit renderRequest();
+				if (!disableRenderOnPaint)
+				{
+					emit renderRequest();
+				}
 			}
 		}
 		image->RedrawInWidget(this);
 	}
 }
 
-void cThumbnailWidget::AssignParameters(
-	const cParameterContainer &_params, const cFractalContainer &_fractal)
+void cThumbnailWidget::AssignParameters(std::shared_ptr<const cParameterContainer> _params,
+	std::shared_ptr<const cFractalContainer> _fractal)
 {
+	isFullyRendered = false;
+	// qDebug() << "AssignParameters";
 	if (image)
 	{
-		if (!params) params = new cParameterContainer;
-		if (!fractal) fractal = new cFractalContainer;
-		*params = _params;
-		*fractal = _fractal;
+		params.reset(new cParameterContainer);
+		fractal.reset(new cFractalContainer);
+		*params = *_params;
+		*fractal = *_fractal;
 		params->Set("image_width", tWidth * oversample);
 		params->Set("image_height", tHeight * oversample);
 		params->Set("stereo_mode", int(cStereo::stereoRedCyan));
 		params->Set("DOF_max_noise", params->Get<double>("DOF_max_noise") * 10.0);
 		params->Set("DOF_min_samples", 5);
+		params->Set("antialiasing_enabled", false);
 
-		if (params->Get<bool>("opencl_enabled") && params->Get<int>("opencl_mode") > 0)
+		if (fractal->isUsedCustomFormula())
 		{
-			double distance =
-				cInterface::GetDistanceForPoint(params->Get<CVector3>("camera"), params, fractal);
-			if (distance < 1e-5)
+			params->Set("opencl_mode", int(cOpenClEngineRenderFractal::clRenderEngineTypeFull));
+			params->Set("opencl_enabled", true);
+		}
+
+		else if (params->Get<bool>("opencl_enabled"))
+		{
+			if (params->Get<int>("opencl_mode") > 0)
 			{
-				params->Set("opencl_mode", 0);
+				double distance =
+					cInterface::GetDistanceForPoint(params->Get<CVector3>("camera"), params, fractal);
+				if (distance < 1e-5)
+				{
+					params->Set("opencl_mode", 0);
+				}
+
+				if (distance < 1e-12)
+				{
+					isRendered = true;
+					isFullyRendered = true;
+					params.reset();
+					fractal.reset();
+					// alloc image in case if samething wnat read it
+					image->ChangeSize(tWidth * oversample, tHeight * oversample, sImageOptional());
+					image->ClearImage();
+					emit signalZeroDistance();
+					emit signalFinished();
+					return;
+				}
 			}
 		}
 
@@ -188,6 +218,7 @@ void cThumbnailWidget::AssignParameters(
 			{
 				stopRequest = true;
 				isRendered = true;
+				isFullyRendered = true;
 				while (image->IsUsed())
 				{
 					// just wait and pray
@@ -199,8 +230,8 @@ void cThumbnailWidget::AssignParameters(
 				QImage qImage = pixmap.toImage();
 				qImage = qImage.convertToFormat(QImage::Format_RGB888);
 
-				sRGB8 *previewPointer = image->GetPreviewPrimaryPtr();
-				sRGB8 *preview2Pointer = image->GetPreviewPtr();
+				std::vector<sRGB8> &preview = image->GetPreviewPrimary();
+				std::vector<sRGB8> &preview2 = image->GetPreview();
 
 				int bWidth = qImage.width();
 				int bHeight = qImage.height();
@@ -213,17 +244,16 @@ void cThumbnailWidget::AssignParameters(
 						for (int x = 0; x < bWidth; x++)
 						{
 							sRGB8 pixel(quint8(line[x].R), quint8(line[x].G), quint8(line[x].B));
-							previewPointer[x + y * bWidth] = pixel;
-							preview2Pointer[x + y * bWidth] = pixel;
+							preview[x + y * bWidth] = pixel;
+							preview2[x + y * bWidth] = pixel;
 						}
 					}
 				}
 
-				delete params;
-				params = nullptr;
-				delete fractal;
-				fractal = nullptr;
+				params.reset();
+				fractal.reset();
 				emit thumbnailRendered();
+				emit signalFinished();
 			}
 			else
 			{
@@ -245,6 +275,7 @@ void cThumbnailWidget::AssignParameters(
 
 void cThumbnailWidget::slotRender()
 {
+	// qDebug() << "slotRender";
 	if (image && params)
 	{
 		stopRequest = true;
@@ -257,7 +288,7 @@ void cThumbnailWidget::slotRender()
 		// random wait to not generate to many events at exactly the same time
 		Wait(Random(100) + 50);
 
-		if (cRenderJob::GetRunningJobCount() > systemData.numberOfThreads)
+		if (!disableTimer && cRenderJob::GetRunningJobCount() > systemData.numberOfThreads)
 		{
 			// try again after some random time
 			timer->start(Random(5000) + 1);
@@ -271,6 +302,8 @@ void cThumbnailWidget::slotRender()
 		connect(renderJob, SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)),
 			this, SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)));
 		connect(renderJob, SIGNAL(updateImage()), this, SLOT(update()));
+		connect(renderJob, &cRenderJob::signalTotalRenderTime, this,
+			&cThumbnailWidget::signalTotalRenderTime);
 
 		renderingTimeTimer.start();
 		renderJob->UseSizeFromImage(true);
@@ -294,6 +327,7 @@ void cThumbnailWidget::slotRender()
 		QObject::connect(renderJob, SIGNAL(fullyRendered(const QString &, const QString &)), this,
 			SLOT(slotFullyRendered()));
 		QObject::connect(thread, SIGNAL(finished()), thread, SLOT(deleteLater()));
+		connect(thread, &QThread::finished, this, &cThumbnailWidget::signalFinished);
 	}
 	else
 	{
@@ -306,7 +340,7 @@ void cThumbnailWidget::slotFullyRendered()
 	isRendered = true;
 	if (!disableThumbnailCache)
 	{
-		QImage qImage(static_cast<const uchar *>(image->ConvertTo8bit()), int(image->GetWidth()),
+		QImage qImage(static_cast<const uchar *>(image->ConvertTo8bitChar()), int(image->GetWidth()),
 			int(image->GetHeight()), int(image->GetWidth() * sizeof(sRGB8)), QImage::Format_RGB888);
 		QPixmap pixmap;
 		pixmap.convertFromImage(qImage);
@@ -315,11 +349,11 @@ void cThumbnailWidget::slotFullyRendered()
 		pixmap.save(thumbnailFileName, "PNG");
 	}
 	lastRenderTime = renderingTimeTimer.nsecsElapsed() / 1e9;
-	delete params;
-	params = nullptr;
-	delete fractal;
-	fractal = nullptr;
+	params.reset();
+	fractal.reset();
 	emit thumbnailRendered();
+	isFullyRendered = true;
+	// qDebug() << "fullyRendered";
 }
 
 void cThumbnailWidget::slotRandomRender()
@@ -331,8 +365,11 @@ void cThumbnailWidget::slotRandomRender()
 	}
 	else
 	{
-		isRendered = true;
-		slotRender();
+		if (!disableTimer)
+		{
+			isRendered = true;
+			slotRender();
+		}
 	}
 }
 
@@ -343,7 +380,7 @@ void cThumbnailWidget::slotSetMinimumSize(int width, int height)
 
 QString cThumbnailWidget::GetThumbnailFileName() const
 {
-	return systemData.GetThumbnailsFolder() + QDir::separator() + hash + QString(".png");
+	return systemDirectories.GetThumbnailsFolder() + QDir::separator() + hash + QString(".png");
 }
 
 int cThumbnailWidget::instanceCount = 0;

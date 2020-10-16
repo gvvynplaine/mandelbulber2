@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2015-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2015-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -53,6 +53,8 @@
 #include "rendered_image_widget.hpp"
 #include "settings.hpp"
 #include "system.hpp"
+#include "system_data.hpp"
+#include "system_directories.hpp"
 
 #include "qt/dock_queue.h"
 #include "qt/preview_file_dialog.h"
@@ -100,7 +102,7 @@ cQueue::cQueue(cInterface *_interface, const QString &_queueListFileName,
 	UpdateListFromQueueFile();
 	UpdateListFromFileSystem();
 
-	image = new cImage(200, 200);
+	image.reset(new cImage(200, 200));
 
 	if (mainInterface->mainWindow)
 	{
@@ -145,7 +147,7 @@ cQueue::cQueue(cInterface *_interface, const QString &_queueListFileName,
 
 cQueue::~cQueue()
 {
-	if (image) delete image;
+	// nothing to delete
 }
 
 void cQueue::Append(const QString &filename, enumRenderType renderType)
@@ -172,8 +174,9 @@ void cQueue::Append(enumRenderType renderType)
 	Append(gPar, gParFractal, gAnimFrames, gKeyframes, renderType);
 }
 
-void cQueue::Append(cParameterContainer *par, cFractalContainer *fractPar, cAnimationFrames *frames,
-	cKeyframes *keyframes, enumRenderType renderType)
+void cQueue::Append(std::shared_ptr<cParameterContainer> par,
+	std::shared_ptr<cFractalContainer> fractPar, std::shared_ptr<cAnimationFrames> frames,
+	std::shared_ptr<cKeyframes> keyframes, enumRenderType renderType)
 {
 	// add settings to queue
 	cSettings parSettings(cSettings::formatCondensedText);
@@ -245,8 +248,9 @@ bool cQueue::Get()
 	return Get(gPar, gParFractal, gAnimFrames, gKeyframes);
 }
 
-bool cQueue::Get(cParameterContainer *par, cFractalContainer *fractPar, cAnimationFrames *frames,
-	cKeyframes *keyframes)
+bool cQueue::Get(std::shared_ptr<cParameterContainer> par,
+	std::shared_ptr<cFractalContainer> fractPar, std::shared_ptr<cAnimationFrames> frames,
+	std::shared_ptr<cKeyframes> keyframes)
 {
 	// get next fractal from queue
 	structQueueItem queueItem = GetNextFromList();
@@ -599,7 +603,7 @@ void cQueue::slotQueueAddFromFile()
 	dialog.setOption(QFileDialog::DontUseNativeDialog);
 	dialog.setFileMode(QFileDialog::ExistingFile);
 	dialog.setNameFilter(tr("Fractals (*.txt *.fract)"));
-	dialog.setDirectory(systemData.GetSettingsFolder() + QDir::separator());
+	dialog.setDirectory(systemDirectories.GetSettingsFolder() + QDir::separator());
 	dialog.selectFile(systemData.lastSettingsFile);
 	dialog.setAcceptMode(QFileDialog::AcceptOpen);
 	dialog.setWindowTitle(tr("Add file to queue..."));
@@ -710,11 +714,11 @@ void cQueue::slotQueueListUpdateCell(int i, int j)
 		{
 			if (ui->checkBox_show_queue_thumbnails->isChecked())
 			{
-				cParameterContainer *tempPar = new cParameterContainer;
-				cFractalContainer *tempFract = new cFractalContainer;
+				std::shared_ptr<cParameterContainer> tempPar(new cParameterContainer());
+				std::shared_ptr<cFractalContainer> tempFract(new cFractalContainer());
 				InitParams(tempPar);
-				for (int j = 0; j < NUMBER_OF_FRACTALS; j++)
-					InitFractalParams(&tempFract->at(j));
+				for (int f = 0; f < NUMBER_OF_FRACTALS; f++)
+					InitFractalParams(tempFract->at(f));
 				InitMaterialParams(1, tempPar);
 
 				cSettings parSettings(cSettings::formatFullText);
@@ -727,17 +731,15 @@ void cQueue::slotQueueListUpdateCell(int i, int j)
 					{
 						thumbWidget = new cThumbnailWidget(100, 70, 1, table);
 						thumbWidget->UseOneCPUCore(true);
-						thumbWidget->AssignParameters(*tempPar, *tempFract);
+						thumbWidget->AssignParameters(tempPar, tempFract);
 						table->setCellWidget(i, j, thumbWidget);
 					}
 					else
 					{
-						thumbWidget->AssignParameters(*tempPar, *tempFract);
+						thumbWidget->AssignParameters(tempPar, tempFract);
 						thumbWidget->update();
 					}
 				}
-				delete tempPar;
-				delete tempFract;
 			}
 			break;
 		}

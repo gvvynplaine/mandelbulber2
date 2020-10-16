@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,6 +35,8 @@
 #ifndef MANDELBULBER2_QT_AUDIO_SELECTOR_H_
 #define MANDELBULBER2_QT_AUDIO_SELECTOR_H_
 
+#include <memory>
+
 #include <QAudioOutput>
 #include <QBuffer>
 #include <QMediaPlayer>
@@ -57,7 +59,7 @@ public:
 	explicit cAudioSelector(QWidget *parent = nullptr);
 	~cAudioSelector() override;
 	void AssignParameter(const QString &_parameterName);
-	void AssignAnimation(cAnimationFrames *_animationFrames);
+	void AssignAnimation(std::shared_ptr<cAnimationFrames> _animationFrames);
 
 private slots:
 	void slotLoadAudioFile();
@@ -82,13 +84,13 @@ private:
 
 	cAutomatedWidgets *automatedWidgets;
 
-	QSharedPointer<cAudioTrack> audio;
+	std::shared_ptr<cAudioTrack> audio;
 	QString parameterName;
-	cAnimationFrames *animationFrames;
+	std::shared_ptr<cAnimationFrames> animationFrames;
 
-	QAudioOutput *audioOutput;
+	std::unique_ptr<QAudioOutput> audioOutput;
 	QByteArray playBuffer;
-	QBuffer *playStream;
+	std::unique_ptr<QBuffer> playStream;
 
 signals:
 	void frequencyChanged(double midfreq, double bandwidth);

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -208,7 +208,7 @@ float PrimitiveTorus(__global sPrimitiveCl *primitive, float3 _point)
 		LengthPow(pointXY, pow(2.0f, primitive->data.torus.radiusLPow)) - primitive->data.torus.radius;
 	float2 pointDZ = (float2){d1, point.z};
 
-	float dist = LengthPow(pointDZ, pow(2.0, primitive->data.torus.tubeRadiusLPow))
+	float dist = LengthPow(pointDZ, pow(2.0f, primitive->data.torus.tubeRadiusLPow))
 							 - primitive->data.torus.tubeRadius;
 	return primitive->data.torus.empty ? fabs(dist) : dist;
 }

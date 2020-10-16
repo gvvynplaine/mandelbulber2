@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -41,6 +41,9 @@
 #include "opencl_hardware.h"
 #include "parameters.hpp"
 #include "progress_text.hpp"
+#include "system_data.hpp"
+#include "system_directories.hpp"
+#include "write_log.hpp"
 
 cOpenClEngineRenderSSAO::cOpenClEngineRenderSSAO(cOpenClHardware *_hardware)
 		: cOpenClEngine(_hardware)
@@ -90,14 +93,15 @@ void cOpenClEngineRenderSSAO::SetParameters(
 	definesCollector.clear();
 }
 
-bool cOpenClEngineRenderSSAO::LoadSourcesAndCompile(const cParameterContainer *params)
+bool cOpenClEngineRenderSSAO::LoadSourcesAndCompile(
+	std::shared_ptr<const cParameterContainer> params, QString *compilerErrorOutput)
 {
 	programsLoaded = false;
 	readyForRendering = false;
 	emit updateProgressAndStatus(
 		tr("OpenCl SSAO - initializing"), tr("Compiling sources for SSAO"), 0.0);
 
-	QString openclPath = systemData.sharedDir + "opencl" + QDir::separator();
+	QString openclPath = systemDirectories.sharedDir + "opencl" + QDir::separator();
 	QString openclEnginePath = openclPath + "engines" + QDir::separator();
 
 	QByteArray programEngine;
@@ -124,7 +128,7 @@ bool cOpenClEngineRenderSSAO::LoadSourcesAndCompile(const cParameterContainer *p
 
 	QElapsedTimer timer;
 	timer.start();
-	if (Build(programEngine, &errorString))
+	if (Build(programEngine, &errorString, false))
 	{
 		programsLoaded = true;
 	}
@@ -133,13 +137,17 @@ bool cOpenClEngineRenderSSAO::LoadSourcesAndCompile(const cParameterContainer *p
 		programsLoaded = false;
 		WriteLog(errorString, 0);
 	}
+
+	if (compilerErrorOutput) *compilerErrorOutput = errorString;
+
 	WriteLogDouble(
 		"cOpenClEngineRenderSSAO: Opencl DOF build time [s]", timer.nsecsElapsed() / 1.0e9, 2);
 
 	return programsLoaded;
 }
 
-void cOpenClEngineRenderSSAO::RegisterInputOutputBuffers(const cParameterContainer *params)
+void cOpenClEngineRenderSSAO::RegisterInputOutputBuffers(
+	std::shared_ptr<const cParameterContainer> params)
 {
 	Q_UNUSED(params);
 	inputBuffers[0] << sClInputOutputBuffer(sizeof(cl_float), numberOfPixels, "z-buffer");
@@ -202,7 +210,7 @@ bool cOpenClEngineRenderSSAO::ProcessQueue(quint64 pixelsLeft, quint64 pixelInde
 	return true;
 }
 
-bool cOpenClEngineRenderSSAO::Render(cImage *image, bool *stopRequest)
+bool cOpenClEngineRenderSSAO::Render(std::shared_ptr<cImage> image, bool *stopRequest)
 {
 	if (programsLoaded)
 	{
@@ -225,17 +233,17 @@ bool cOpenClEngineRenderSSAO::Render(cImage *image, bool *stopRequest)
 			for (quint64 x = 0; x < width; x++)
 			{
 				quint64 i = x + y * width;
-				reinterpret_cast<cl_float *>(inputBuffers[0][zBufferIndex].ptr.data())[i] =
+				reinterpret_cast<cl_float *>(inputBuffers[0][zBufferIndex].ptr.get())[i] =
 					image->GetPixelZBuffer(x + imageRegion.x1, y + imageRegion.y1);
 			}
 		}
 
 		for (int i = 0; i < paramsSSAO.quality; i++)
 		{
-			reinterpret_cast<cl_float *>(inputBuffers[0][sineCosineIndex].ptr.data())[i] =
+			reinterpret_cast<cl_float *>(inputBuffers[0][sineCosineIndex].ptr.get())[i] =
 				sinf(float(i) / paramsSSAO.quality * 2.0f * float(M_PI));
 			reinterpret_cast<cl_float *>(
-				inputBuffers[0][sineCosineIndex].ptr.data())[i + paramsSSAO.quality] =
+				inputBuffers[0][sineCosineIndex].ptr.get())[i + paramsSSAO.quality] =
 				cosf(float(i) / paramsSSAO.quality * 2.0f * float(M_PI));
 		}
 
@@ -278,7 +286,7 @@ bool cOpenClEngineRenderSSAO::Render(cImage *image, bool *stopRequest)
 					quint64 yy = y + imageRegion.y1;
 
 					cl_float total_ambient =
-						reinterpret_cast<cl_float *>(outputBuffers[0][outputIndex].ptr.data())[x + y * width];
+						reinterpret_cast<cl_float *>(outputBuffers[0][outputIndex].ptr.get())[x + y * width];
 
 					unsigned short opacity16 = image->GetPixelOpacity(xx, yy);
 					float opacity = opacity16 / 65535.0f;
@@ -302,7 +310,7 @@ bool cOpenClEngineRenderSSAO::Render(cImage *image, bool *stopRequest)
 			if (image->IsPreview())
 			{
 				WriteLog("image->ConvertTo8bit()", 2);
-				image->ConvertTo8bit();
+				image->ConvertTo8bitChar();
 				WriteLog("image->UpdatePreview()", 2);
 				image->UpdatePreview();
 				WriteLog("image->GetImageWidget()->update()", 2);

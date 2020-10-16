@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,6 +34,8 @@
 
 #include "preview_file_dialog.h"
 
+#include <memory>
+
 #include "my_progress_bar.h"
 #include "thumbnail_widget.h"
 
@@ -41,9 +43,10 @@
 #include "src/initparameters.hpp"
 #include "src/interface.hpp"
 #include "src/queue.hpp"
+#include "src/radiance_hdr.h"
 #include "src/render_window.hpp"
 #include "src/settings.hpp"
-#include "src/system.hpp"
+#include "src/system_directories.hpp"
 
 PreviewFileDialog::PreviewFileDialog(QWidget *parent) : QFileDialog(parent)
 {
@@ -52,7 +55,7 @@ PreviewFileDialog::PreviewFileDialog(QWidget *parent) : QFileDialog(parent)
 	preview = nullptr;
 	vBoxLayout = new QVBoxLayout();
 
-	checkbox = new QCheckBox(tr("Preview"));
+	checkbox = new QCheckBox(tr("Preview"), this);
 	checkbox->setChecked(true);
 
 	preview = new QLabel("", this);
@@ -64,19 +67,19 @@ PreviewFileDialog::PreviewFileDialog(QWidget *parent) : QFileDialog(parent)
 	description = new QLabel("", this);
 	description->setAlignment(Qt::AlignCenter);
 	description->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
-	info = new QLabel("");
+	info = new QLabel("", this);
 	info->setWordWrap(true);
 	info->setMaximumWidth(200);
 
-	progressBar = new MyProgressBar;
+	progressBar = new MyProgressBar(this);
 	progressBar->setMaximum(1000);
 	progressBar->setAlignment(Qt::AlignCenter);
 	progressBar->hide();
 
-	presetAddButton = new QPushButton;
+	presetAddButton = new QPushButton(this);
 	presetAddButton->setText(tr("Add to presets"));
 
-	queueAddButton = new QPushButton;
+	queueAddButton = new QPushButton(this);
 	queueAddButton->setText(tr("Add to queue"));
 
 	vBoxLayout->addWidget(checkbox);
@@ -95,6 +98,8 @@ PreviewFileDialog::PreviewFileDialog(QWidget *parent) : QFileDialog(parent)
 	QGridLayout *gridLayout = static_cast<QGridLayout *>(layout());
 	gridLayout->addLayout(vBoxLayout, 1, 3, 3, 1);
 
+	adjustSize();
+
 	connect(
 		this, SIGNAL(currentChanged(const QString &)), this, SLOT(OnCurrentChanged(const QString &)));
 	connect(presetAddButton, SIGNAL(clicked()), this, SLOT(OnPresetAdd()));
@@ -106,18 +111,13 @@ PreviewFileDialog::PreviewFileDialog(QWidget *parent) : QFileDialog(parent)
 
 PreviewFileDialog::~PreviewFileDialog()
 {
-	delete vBoxLayout;
-	delete preview;
-	delete info;
-	delete progressBar;
-	delete presetAddButton;
-	delete queueAddButton;
+	// all deleted by parent widget
 }
 
 void PreviewFileDialog::OnPresetAdd() const
 {
-	fcopy(
-		filename, systemData.GetToolbarFolder() + QDir::separator() + QFileInfo(filename).fileName());
+	fcopy(filename,
+		systemDirectories.GetToolbarFolder() + QDir::separator() + QFileInfo(filename).fileName());
 	gMainInterface->mainWindow->slotPopulateToolbar();
 }
 
@@ -140,11 +140,11 @@ void PreviewFileDialog::OnCurrentChanged(const QString &_filename)
 		if (parSettings.LoadFromFile(filename))
 		{
 			progressBar->show();
-			cParameterContainer *par = new cParameterContainer;
-			cFractalContainer *parFractal = new cFractalContainer;
+			std::shared_ptr<cParameterContainer> par(new cParameterContainer);
+			std::shared_ptr<cFractalContainer> parFractal(new cFractalContainer);
 			InitParams(par);
 			for (int i = 0; i < NUMBER_OF_FRACTALS; i++)
-				InitFractalParams(&parFractal->at(i));
+				InitFractalParams(parFractal->at(i));
 
 			/****************** TEMPORARY CODE FOR MATERIALS *******************/
 
@@ -158,7 +158,7 @@ void PreviewFileDialog::OnCurrentChanged(const QString &_filename)
 				par->Set("opencl_enabled", gPar->Get<bool>("opencl_enabled"));
 				if (!gPar->Get<bool>("thumbnails_with_opencl")) par->Set("opencl_enabled", false);
 				description->setText(par->Get<QString>("description"));
-				thumbWidget->AssignParameters(*par, *parFractal);
+				thumbWidget->AssignParameters(par, parFractal);
 				thumbWidget->update();
 			}
 			else
@@ -167,8 +167,6 @@ void PreviewFileDialog::OnCurrentChanged(const QString &_filename)
 				preview->setText(" ");
 				info->setText(" ");
 			}
-			delete par;
-			delete parFractal;
 		}
 	}
 	else
@@ -176,7 +174,18 @@ void PreviewFileDialog::OnCurrentChanged(const QString &_filename)
 		thumbWidget->hide();
 		description->hide();
 		preview->show();
-		pixmap.load(filename);
+
+		cRadianceHDR radianceHDR;
+		int w;
+		int h;
+		if (radianceHDR.Init(filename, &w, &h))
+		{
+			radianceHDR.LoadToQPixmap(&pixmap);
+		}
+		else
+		{
+			pixmap.load(filename);
+		}
 		if (pixmap.isNull() || !checkbox->isChecked())
 		{
 			preview->setText(" ");

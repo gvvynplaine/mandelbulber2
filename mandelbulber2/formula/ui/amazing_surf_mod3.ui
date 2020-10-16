@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>947</width>
-    <height>7824</height>
+    <height>8028</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -2007,10 +2007,10 @@ offset:</string>
                  <number>6</number>
                 </property>
                 <property name="minimum">
-                 <double>-100000.000000000000000</double>
+                 <double>-99.989999999999995</double>
                 </property>
                 <property name="maximum">
-                 <double>100000.000000000000000</double>
+                 <double>99.989999999999995</double>
                 </property>
                 <property name="singleStep">
                  <double>0.100000000000000</double>
@@ -2042,10 +2042,10 @@ offset:</string>
                  <number>6</number>
                 </property>
                 <property name="minimum">
-                 <double>-100000.000000000000000</double>
+                 <double>-99.989999999999995</double>
                 </property>
                 <property name="maximum">
-                 <double>100000.000000000000000</double>
+                 <double>99.989999999999995</double>
                 </property>
                 <property name="singleStep">
                  <double>0.100000000000000</double>
@@ -2179,10 +2179,10 @@ offset:</string>
               <number>6</number>
              </property>
              <property name="minimum">
-              <double>-180.000000000000000</double>
+              <double>-36000.000000000000000</double>
              </property>
              <property name="maximum">
-              <double>180.000000000000000</double>
+              <double>36000.000000000000000</double>
              </property>
              <property name="singleStep">
               <double>1.000000000000000</double>
@@ -2207,10 +2207,10 @@ offset:</string>
               <number>6</number>
              </property>
              <property name="minimum">
-              <double>-180.000000000000000</double>
+              <double>-36000.000000000000000</double>
              </property>
              <property name="maximum">
-              <double>180.000000000000000</double>
+              <double>36000.000000000000000</double>
              </property>
              <property name="singleStep">
               <double>1.000000000000000</double>
@@ -2235,10 +2235,10 @@ offset:</string>
               <number>6</number>
              </property>
              <property name="minimum">
-              <double>-180.000000000000000</double>
+              <double>-36000.000000000000000</double>
              </property>
              <property name="maximum">
-              <double>180.000000000000000</double>
+              <double>36000.000000000000000</double>
              </property>
              <property name="singleStep">
               <double>1.000000000000000</double>
@@ -3200,7 +3200,7 @@ offset:</string>
 &lt;tr&gt;&lt;th&gt;Reference&lt;/th&gt;&lt;td&gt;&lt;a href=&quot;http://www.fractalforums.com/mandelbulb-3d/custom-formulas-and-transforms-release-t17106/&quot;&gt;http://www.fractalforums.com/mandelbulb-3d/custom-formulas-and-transforms-release-t17106/&lt;br&gt;
 &lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
-&lt;br&gt;&lt;b&gt;Examples using this formula&lt;/b&gt;&lt;br&gt;Graeme McLaren  collection - license Creative Commons  (CC-BY 4.0)/DIFS BoxV1 asurf.fract&lt;h3&gt;Code&lt;/h3&gt;</string>
+&lt;br&gt;&lt;b&gt;Examples using this formula&lt;/b&gt;&lt;br&gt;Graeme McLaren  collection - license Creative Commons  (CC-BY 4.0)/DIFS BoxV1 asurf.fract&lt;br&gt;Graeme McLaren  collection - license Creative Commons  (CC-BY 4.0)/asurf3_mandalay.fract&lt;h3&gt;Code&lt;/h3&gt;</string>
         </property>
         <property name="wordWrap">
          <bool>true</bool>
@@ -3555,6 +3555,11 @@ offset:</string>
  </widget>
  <customwidgets>
   <customwidget>
+   <class>MyDoubleSpinBox</class>
+   <extends>QDoubleSpinBox</extends>
+   <header>my_double_spin_box.h</header>
+  </customwidget>
+  <customwidget>
    <class>MyGroupBox</class>
    <extends>QGroupBox</extends>
    <header>my_group_box.h</header>
@@ -3574,11 +3579,6 @@ offset:</string>
    <class>MyComboBox</class>
    <extends>QComboBox</extends>
    <header>my_combo_box.h</header>
-  </customwidget>
-  <customwidget>
-   <class>MyDoubleSpinBox</class>
-   <extends>QDoubleSpinBox</extends>
-   <header>my_double_spin_box.h</header>
   </customwidget>
  </customwidgets>
  <tabstops>

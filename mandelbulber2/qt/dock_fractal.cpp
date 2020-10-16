@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -42,19 +42,20 @@
 #include "src/automated_widgets.hpp"
 #include "src/error_message.hpp"
 #include "src/fractal_enums.h"
-#include "src/fractal_list.hpp"
 #include "src/global_data.hpp"
 #include "src/initparameters.hpp"
 #include "src/interface.hpp"
 #include "src/render_window.hpp"
 #include "src/rendered_image_widget.hpp"
-#include "src/system.hpp"
+#include "src/write_log.hpp"
+
+#include "formula/definition/all_fractal_list.hpp"
 
 cDockFractal::cDockFractal(QWidget *parent) : QWidget(parent), ui(new Ui::cDockFractal)
 {
 	ui->setupUi(this);
 
-	fractalTabs = new cTabFractal *[NUMBER_OF_FRACTALS];
+	fractalTabs.resize(NUMBER_OF_FRACTALS);
 	for (int i = 0; i < NUMBER_OF_FRACTALS; i++)
 	{
 		fractalTabs[i] =
@@ -80,7 +81,6 @@ cDockFractal::cDockFractal(QWidget *parent) : QWidget(parent), ui(new Ui::cDockF
 cDockFractal::~cDockFractal()
 {
 	delete ui;
-	delete[] fractalTabs;
 }
 
 bool cDockFractal::AreHybridFractalsEnabled() const
@@ -88,8 +88,8 @@ bool cDockFractal::AreHybridFractalsEnabled() const
 	return ui->checkBox_hybrid_fractal_enable->isChecked();
 }
 
-void cDockFractal::SynchronizeInterfaceFractals(
-	cParameterContainer *par, cFractalContainer *parFractal, qInterface::enumReadWrite mode) const
+void cDockFractal::SynchronizeInterfaceFractals(std::shared_ptr<cParameterContainer> par,
+	std::shared_ptr<cFractalContainer> parFractal, qInterface::enumReadWrite mode) const
 {
 	WriteLog("cInterface::SynchronizeInterface: tabWidget_fractal_common", 3);
 	SynchronizeInterfaceWindow(ui->tabWidget_fractal_common, par, mode);
@@ -106,7 +106,7 @@ void cDockFractal::SynchronizeInterfaceFractals(
 	for (int i = 0; i < NUMBER_OF_FRACTALS; i++)
 	{
 		WriteLog("cInterface::SynchronizeInterface: fractalWidgets[i]", 3);
-		fractalTabs[i]->SynchronizeFractal(&parFractal->at(i), mode);
+		fractalTabs[i]->SynchronizeFractal(parFractal->at(i), mode);
 		fractalTabs[i]->SynchronizeInterface(par, mode);
 	}
 }
@@ -268,8 +268,8 @@ void cDockFractal::slotFractalSwap(int swapA, int swapB) const
 	}
 
 	// swap formula specific fields in gParFractal by swapping whole container
-	fractalTabs[swapA]->SynchronizeFractal(&gParFractal->at(swapB), qInterface::read);
-	fractalTabs[swapB]->SynchronizeFractal(&gParFractal->at(swapA), qInterface::read);
+	fractalTabs[swapA]->SynchronizeFractal(gParFractal->at(swapB), qInterface::read);
+	fractalTabs[swapB]->SynchronizeFractal(gParFractal->at(swapA), qInterface::read);
 
 	// write swapped changes to ui
 	gMainInterface->SynchronizeInterface(gPar, gParFractal, qInterface::write);
@@ -293,7 +293,7 @@ void cDockFractal::slotChangedCheckBoxBooleanOperators(bool state) const
 		fractalTabs[i]->FormulaTransformSetVisible(state);
 
 		const fractal::enumCPixelAddition cPixelAddition =
-			fractalList[fractalTabs[i]->GetCurrentFractalIndexOnList()].cpixelAddition;
+			newFractalList[fractalTabs[i]->GetCurrentFractalIndexOnList()]->getCpixelAddition();
 
 		if (cPixelAddition == fractal::cpixelAlreadyHas)
 			fractalTabs[i]->CConstantAdditionSetVisible(false);
@@ -350,35 +350,43 @@ void cDockFractal::slotGroupCheckJuliaModeToggled(bool state)
 
 void cDockFractal::slotChangedJuliaPoint() const
 {
-	if (ui->groupCheck_julia_mode->isChecked() && gInterfaceReadyForSynchronization)
+	if (ui->groupCheck_julia_mode->isChecked() && gPar->Get<bool>("julia_preview")
+			&& gInterfaceReadyForSynchronization)
 	{
-		cParameterContainer params;
-		InitParams(&params);
-		InitMaterialParams(1, &params);
-		SynchronizeInterfaceWindow(ui->groupCheck_julia_mode, &params, qInterface::read);
-		params.SetContainerName("juliaPreview");
+		std::shared_ptr<cParameterContainer> params(new cParameterContainer());
+		InitParams(params);
+		InitMaterialParams(1, params);
+		SynchronizeInterfaceWindow(ui->groupCheck_julia_mode, params, qInterface::read);
+		params->SetContainerName("juliaPreview");
 
-		const double cameraDistance = params.Get<double>("julia_preview_distance");
+		const double cameraDistance = params->Get<double>("julia_preview_distance");
 		CVector3 target(0.0, 0.0, 0.0);
 		CVector3 direction = gPar->Get<CVector3>("camera") - gPar->Get<CVector3>("target");
 		direction.Normalize();
 		CVector3 camera = target + direction * cameraDistance;
 
-		params.Set("camera", camera);
-		params.Set("target", target);
-		params.Set("julia_mode", true);
-		params.Set("ambient_occlusion_enabled", true);
-		params.Copy("camera_top", gPar);
+		params->Set("camera", camera);
+		params->Set("target", target);
+		params->Set("julia_mode", true);
+		params->Set("ambient_occlusion_enabled", true);
+		params->Copy("camera_top", gPar);
 		for (int i = 1; i <= NUMBER_OF_FRACTALS; i++)
 		{
-			params.Copy(QString("formula_%1").arg(i), gPar);
+			params->Copy(QString("formula_%1").arg(i), gPar);
+			params->Copy(QString("formula_iterations_%1").arg(i), gPar);
+			params->Copy(QString("fractal_enable_%1").arg(i), gPar);
+			params->Copy(QString("formula_weight_%1").arg(i), gPar);
+			params->Copy(QString("formula_start_iteration_%1").arg(i), gPar);
+			params->Copy(QString("formula_stop_iteration_%1").arg(i), gPar);
+			params->Copy(QString("dont_add_c_constant_%1").arg(i), gPar);
+			params->Copy(QString("check_for_bailout_%1").arg(i), gPar);
 		}
-		params.Copy("hybrid_fractal_enable", gPar);
-		params.Copy("fractal_constant_factor", gPar);
-		params.Copy("opencl_mode", gPar);
-		params.Copy("opencl_enabled", gPar);
+		params->Copy("hybrid_fractal_enable", gPar);
+		params->Copy("fractal_constant_factor", gPar);
+		params->Copy("opencl_mode", gPar);
+		params->Copy("opencl_enabled", gPar);
 
-		ui->previewwidget_julia->AssignParameters(params, *gParFractal);
+		ui->previewwidget_julia->AssignParameters(params, gParFractal);
 		ui->previewwidget_julia->update();
 	}
 }
@@ -406,29 +414,30 @@ void cDockFractal::slotChangedFractalTab(int index)
 		if (!ui->checkBox_hybrid_fractal_enable->isChecked()
 				&& !ui->groupCheck_boolean_operators->isChecked())
 		{
-			QMessageBox *message = new QMessageBox(this);
+			QMessageBox message;
+			;
 
 			QPushButton *buttonHybrid =
-				message->addButton(tr("Enable hybrid fractals"), QMessageBox::AcceptRole);
+				message.addButton(tr("Enable hybrid fractals"), QMessageBox::AcceptRole);
 			QPushButton *buttonBoolean =
-				message->addButton(tr("Enable boolean mode"), QMessageBox::AcceptRole);
-			const QPushButton *buttonCancel = message->addButton(QMessageBox::Cancel);
+				message.addButton(tr("Enable boolean mode"), QMessageBox::AcceptRole);
+			const QPushButton *buttonCancel = message.addButton(QMessageBox::Cancel);
 
-			message->setText(tr(
+			message.setText(tr(
 				"You have selected next fractal formula.\nDo you want to enable hybrid fractals or boolean "
 				"mode?"));
-			message->setWindowTitle(tr("More fractals..."));
-			message->setIcon(QMessageBox::Question);
-			const int result = message->exec();
+			message.setWindowTitle(tr("More fractals..."));
+			message.setIcon(QMessageBox::Question);
+			const int result = message.exec();
 			Q_UNUSED(result);
 
-			if (message->clickedButton() != buttonCancel)
+			if (message.clickedButton() != buttonCancel)
 			{
-				if (message->clickedButton() == buttonHybrid)
+				if (message.clickedButton() == buttonHybrid)
 				{
 					ui->checkBox_hybrid_fractal_enable->setChecked(true);
 				}
-				else if (message->clickedButton() == buttonBoolean)
+				else if (message.clickedButton() == buttonBoolean)
 				{
 					ui->groupCheck_boolean_operators->setChecked(true);
 				}

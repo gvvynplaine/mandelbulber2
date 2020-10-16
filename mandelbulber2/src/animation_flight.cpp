@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -40,6 +40,8 @@
 
 #include "animation_flight.hpp"
 
+#include <memory>
+
 #include <QWidget>
 
 #include "ui_dock_animation.h"
@@ -60,7 +62,11 @@
 #include "rendered_image_widget.hpp"
 #include "rendering_configuration.hpp"
 #include "settings.hpp"
+#include "system_data.hpp"
+#include "system_directories.hpp"
 #include "undo.h"
+#include "wait.hpp"
+#include "write_log.hpp"
 
 #include "qt/dock_animation.h"
 #include "qt/dock_navigation.h"
@@ -73,8 +79,9 @@
 
 cFlightAnimation *gFlightAnimation = nullptr;
 
-cFlightAnimation::cFlightAnimation(cInterface *_interface, cAnimationFrames *_frames,
-	cImage *_image, QWidget *_imageWidget, cParameterContainer *_params, cFractalContainer *_fractal,
+cFlightAnimation::cFlightAnimation(cInterface *_interface,
+	std::shared_ptr<cAnimationFrames> _frames, std::shared_ptr<cImage> _image, QWidget *_imageWidget,
+	std::shared_ptr<cParameterContainer> _params, std::shared_ptr<cFractalContainer> _fractal,
 	QObject *parent)
 		: QObject(parent), mainInterface(_interface), frames(_frames)
 {
@@ -245,7 +252,7 @@ void cFlightAnimation::RecordFlight(bool continueRecording)
 
 	// get latest values of all parameters
 	mainInterface->SynchronizeInterface(params, fractalParams, qInterface::read);
-	gUndo.Store(params, fractalParams, frames, nullptr);
+	gUndo->Store(params, fractalParams, frames, nullptr);
 
 	if (!continueRecording)
 	{
@@ -331,14 +338,14 @@ void cFlightAnimation::RecordFlight(bool continueRecording)
 	mainInterface->renderedImage->setClickMode(clickMode);
 
 	// setup of rendering engine
-	QScopedPointer<cRenderJob> renderJob(new cRenderJob(params, fractalParams,
+	std::unique_ptr<cRenderJob> renderJob(new cRenderJob(params, fractalParams,
 		mainInterface->mainImage, &mainInterface->stopRequest, mainInterface->renderedImage));
-	connect(renderJob.data(),
+	connect(renderJob.get(),
 		SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)), this,
 		SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)));
-	connect(renderJob.data(), SIGNAL(updateStatistics(cStatistics)), this,
+	connect(renderJob.get(), SIGNAL(updateStatistics(cStatistics)), this,
 		SIGNAL(updateStatistics(cStatistics)));
-	connect(renderJob.data(), SIGNAL(updateImage()), mainInterface->renderedImage, SLOT(update()));
+	connect(renderJob.get(), SIGNAL(updateImage()), mainInterface->renderedImage, SLOT(update()));
 
 	cRenderingConfiguration config;
 	config.DisableRefresh();
@@ -488,7 +495,7 @@ void cFlightAnimation::RecordFlight(bool continueRecording)
 		renderJob->ChangeCameraTargetPosition(cameraTarget);
 
 		// add new frame to container
-		frames->AddFrame(*params, *fractalParams);
+		frames->AddFrame(params, fractalParams);
 
 		// add column to table
 		const int newColumn = AddColumn(frames->GetFrame(frames->GetNumberOfFrames() - 1));
@@ -549,8 +556,9 @@ void cFlightAnimation::RecordFlight(bool continueRecording)
 void cFlightAnimation::UpdateThumbnailFromImage(int index) const
 {
 	table->blockSignals(true);
-	const QImage qImage(static_cast<const uchar *>(image->ConvertTo8bit()), int(image->GetWidth()),
-		int(image->GetHeight()), int(image->GetWidth() * sizeof(sRGB8)), QImage::Format_RGB888);
+	const QImage qImage(static_cast<const uchar *>(image->ConvertTo8bitChar()),
+		int(image->GetWidth()), int(image->GetHeight()), int(image->GetWidth() * sizeof(sRGB8)),
+		QImage::Format_RGB888);
 	QPixmap pixmap;
 	pixmap.convertFromImage(qImage);
 	const QIcon icon(
@@ -707,22 +715,22 @@ int cFlightAnimation::AddColumn(
 		if (type == typeVector3)
 		{
 			const CVector3 val = frame.parameters.Get<CVector3>(parameterName);
-			table->setItem(row, newColumn, new QTableWidgetItem(QString("%L1").arg(val.x, 0, 'g', 16)));
+			table->setItem(row, newColumn, new QTableWidgetItem(QString("%L1").arg(val.x, 0, 'g', 15)));
 			table->setItem(
-				row + 1, newColumn, new QTableWidgetItem(QString("%L1").arg(val.y, 0, 'g', 16)));
+				row + 1, newColumn, new QTableWidgetItem(QString("%L1").arg(val.y, 0, 'g', 15)));
 			table->setItem(
-				row + 2, newColumn, new QTableWidgetItem(QString("%L1").arg(val.z, 0, 'g', 16)));
+				row + 2, newColumn, new QTableWidgetItem(QString("%L1").arg(val.z, 0, 'g', 15)));
 		}
 		else if (type == typeVector4)
 		{
 			const CVector4 val = frame.parameters.Get<CVector4>(parameterName);
-			table->setItem(row, newColumn, new QTableWidgetItem(QString("%L1").arg(val.x, 0, 'g', 16)));
+			table->setItem(row, newColumn, new QTableWidgetItem(QString("%L1").arg(val.x, 0, 'g', 15)));
 			table->setItem(
-				row + 1, newColumn, new QTableWidgetItem(QString("%L1").arg(val.y, 0, 'g', 16)));
+				row + 1, newColumn, new QTableWidgetItem(QString("%L1").arg(val.y, 0, 'g', 15)));
 			table->setItem(
-				row + 2, newColumn, new QTableWidgetItem(QString("%L1").arg(val.z, 0, 'g', 16)));
+				row + 2, newColumn, new QTableWidgetItem(QString("%L1").arg(val.z, 0, 'g', 15)));
 			table->setItem(
-				row + 3, newColumn, new QTableWidgetItem(QString("%L1").arg(val.w, 0, 'g', 16)));
+				row + 3, newColumn, new QTableWidgetItem(QString("%L1").arg(val.w, 0, 'g', 15)));
 		}
 		else if (type == typeRgb)
 		{
@@ -741,19 +749,19 @@ int cFlightAnimation::AddColumn(
 	return newColumn;
 }
 
-QSharedPointer<cRenderJob> cFlightAnimation::PrepareRenderJob(bool *stopRequest)
+std::shared_ptr<cRenderJob> cFlightAnimation::PrepareRenderJob(bool *stopRequest)
 {
-	QSharedPointer<cRenderJob> renderJob(
+	std::shared_ptr<cRenderJob> renderJob(
 		new cRenderJob(params, fractalParams, image, stopRequest, imageWidget));
-	connect(renderJob.data(),
+	connect(renderJob.get(),
 		SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)), this,
 		SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)));
-	connect(renderJob.data(), SIGNAL(updateStatistics(cStatistics)), this,
+	connect(renderJob.get(), SIGNAL(updateStatistics(cStatistics)), this,
 		SIGNAL(updateStatistics(cStatistics)));
 	if (!systemData.noGui)
 	{
-		connect(renderJob.data(), SIGNAL(updateImage()), mainInterface->renderedImage, SLOT(update()));
-		connect(renderJob.data(), SIGNAL(sendRenderedTilesList(QList<sRenderedTileData>)),
+		connect(renderJob.get(), SIGNAL(updateImage()), mainInterface->renderedImage, SLOT(update()));
+		connect(renderJob.get(), SIGNAL(sendRenderedTilesList(QList<sRenderedTileData>)),
 			mainInterface->renderedImage, SLOT(showRenderedTilesList(QList<sRenderedTileData>)));
 	}
 	return renderJob;
@@ -923,7 +931,7 @@ void cFlightAnimation::InitJobsForClients(const sFrameRanges &frameRanges)
 			emit SendNetRenderSetup(i, startingFrames);
 		}
 	}
-	emit NetRenderCurrentAnimation(*params, *fractalParams, true);
+	emit NetRenderCurrentAnimation(params, fractalParams, true);
 }
 
 void cFlightAnimation::UpadeProgressInformation(
@@ -992,13 +1000,13 @@ bool cFlightAnimation::RenderFlight(bool *stopRequest)
 	if (!systemData.noGui && image->IsMainImage() && !gNetRender->IsClient())
 	{
 		mainInterface->SynchronizeInterface(params, fractalParams, qInterface::read);
-		gUndo.Store(params, fractalParams, frames, nullptr);
+		gUndo->Store(params, fractalParams, frames, nullptr);
 	}
 
 	*stopRequest = false;
 	animationStopRequest = false;
 
-	QSharedPointer<cRenderJob> renderJob = PrepareRenderJob(stopRequest);
+	std::shared_ptr<cRenderJob> renderJob = PrepareRenderJob(stopRequest);
 
 	cRenderingConfiguration config;
 
@@ -1032,7 +1040,7 @@ bool cFlightAnimation::RenderFlight(bool *stopRequest)
 		if (!systemData.noGui && image->IsMainImage() && !gNetRender->IsClient())
 		{
 			mainInterface->SynchronizeInterface(params, fractalParams, qInterface::read);
-			gUndo.Store(params, fractalParams, frames, nullptr);
+			gUndo->Store(params, fractalParams, frames, nullptr);
 		}
 
 		CheckWhichFramesAreAlreadyRendered(frameRanges);
@@ -1183,8 +1191,11 @@ void cFlightAnimation::RefreshTable()
 	UpdateLimitsForFrameRange();
 
 	SynchronizeInterfaceWindow(ui->tab_flight_animation, params, qInterface::read);
-	cParameterContainer tempPar = *params;
-	cFractalContainer tempFract = *fractalParams;
+
+	auto tempPar = std::make_shared<cParameterContainer>();
+	*tempPar = *params;
+	auto tempFract = std::make_shared<cFractalContainer>();
+	*tempFract = *fractalParams;
 
 	table->setColumnCount(noOfFrames);
 
@@ -1197,7 +1208,7 @@ void cFlightAnimation::RefreshTable()
 			cThumbnailWidget *thumbWidget =
 				new cThumbnailWidget(previewSize.width(), previewSize.height(), 1, table);
 			thumbWidget->UseOneCPUCore(true);
-			frames->GetFrameAndConsolidate(i, &tempPar, &tempFract);
+			frames->GetFrameAndConsolidate(i, tempPar, tempFract);
 			thumbWidget->AssignParameters(tempPar, tempFract);
 			table->setCellWidget(0, newColumn, thumbWidget);
 		}
@@ -1244,7 +1255,7 @@ void cFlightAnimation::RenderFrame(int index) const
 
 void cFlightAnimation::DeleteFramesFrom(int index) const
 {
-	gUndo.Store(params, fractalParams, frames, nullptr);
+	gUndo->Store(params, fractalParams, frames, nullptr);
 	for (int i = frames->GetNumberOfFrames() - 1; i >= index; i--)
 		table->removeColumn(index);
 	frames->DeleteFrames(index, frames->GetNumberOfFrames() - 1);
@@ -1253,7 +1264,7 @@ void cFlightAnimation::DeleteFramesFrom(int index) const
 
 void cFlightAnimation::DeleteFramesTo(int index) const
 {
-	gUndo.Store(params, fractalParams, frames, nullptr);
+	gUndo->Store(params, fractalParams, frames, nullptr);
 	for (int i = 0; i <= index; i++)
 		table->removeColumn(0);
 	frames->DeleteFrames(0, index);
@@ -1372,9 +1383,12 @@ void cFlightAnimation::slotTableCellChanged(int row, int column)
 		// update thumbnail
 		if (ui->checkBox_flight_show_thumbnails->isChecked())
 		{
-			cParameterContainer tempPar = *params;
-			cFractalContainer tempFract = *fractalParams;
-			frames->GetFrameAndConsolidate(column, &tempPar, &tempFract);
+			auto tempPar = std::make_shared<cParameterContainer>();
+			*tempPar = *params;
+			auto tempFract = std::make_shared<cFractalContainer>();
+			*tempFract = *fractalParams;
+
+			frames->GetFrameAndConsolidate(column, tempPar, tempFract);
 			cThumbnailWidget *thumbWidget = static_cast<cThumbnailWidget *>(table->cellWidget(0, column));
 
 			if (!thumbWidget)
@@ -1436,7 +1450,7 @@ void cFlightAnimation::slotRecordPause()
 
 void cFlightAnimation::InterpolateForward(int row, int column)
 {
-	gUndo.Store(params, fractalParams, frames, nullptr);
+	gUndo->Store(params, fractalParams, frames, nullptr);
 
 	QTableWidgetItem *cell = ui->tableWidget_flightAnimation->item(row, column);
 	QString cellText = cell->text();
@@ -1503,7 +1517,7 @@ void cFlightAnimation::InterpolateForward(int row, int column)
 	{
 		const double finalDouble = systemData.locale.toDouble(QInputDialog::getText(
 			mainInterface->mainWindow, "Parameter interpolation", "Enter value for last frame",
-			QLineEdit::Normal, QString("%L1").arg(valueDouble, 0, 'g', 16), &ok));
+			QLineEdit::Normal, QString("%L1").arg(valueDouble, 0, 'g', 15), &ok));
 		doubleStep = (finalDouble - valueDouble) / numberOfFrames;
 	}
 
@@ -1520,7 +1534,7 @@ void cFlightAnimation::InterpolateForward(int row, int column)
 		else if (valueIsDouble)
 		{
 			const double newValue = doubleStep * (i - column) + valueDouble;
-			newCellText = QString("%L1").arg(newValue, 0, 'g', 16);
+			newCellText = QString("%L1").arg(newValue, 0, 'g', 15);
 		}
 		else if (valueIsText)
 		{
@@ -1541,7 +1555,7 @@ QString cFlightAnimation::GetFlightFilename(int index, bool netRenderCache) cons
 	QString dir;
 	if (netRenderCache)
 	{
-		dir = systemData.GetNetrenderFolder() + QDir::separator()
+		dir = systemDirectories.GetNetrenderFolder() + QDir::separator()
 					+ QString("pid%1_").arg(QCoreApplication::applicationPid());
 	}
 	else
@@ -1559,7 +1573,7 @@ QString cFlightAnimation::GetFlightFilename(int index, bool netRenderCache) cons
 void cFlightAnimation::slotExportFlightToKeyframes() const
 {
 	mainInterface->SynchronizeInterface(params, fractalParams, qInterface::read);
-	gUndo.Store(params, fractalParams, gAnimFrames, gKeyframes);
+	gUndo->Store(params, fractalParams, gAnimFrames, gKeyframes);
 
 	if (gKeyframes->GetFrames().size() > 0)
 	{

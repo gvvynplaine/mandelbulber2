@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -38,14 +38,16 @@
 
 #include "ssao_worker.h"
 
+#include <vector>
+
 #include "cimage.hpp"
 #include "color_structures.hpp"
 #include "common_math.h"
 #include "fractparams.hpp"
 #include "render_data.hpp"
 
-cSSAOWorker::cSSAOWorker(
-	const sParamRender *_params, sThreadData *_threadData, const sRenderData *_data, cImage *_image)
+cSSAOWorker::cSSAOWorker(const sParamRender *_params, sThreadData *_threadData,
+	const sRenderData *_data, std::shared_ptr<cImage> _image)
 {
 	params = _params;
 	data = _data;
@@ -70,8 +72,8 @@ void cSSAOWorker::doWork()
 	int endX = threadData->region.x2;
 	sRGBFloat aoColor = threadData->color;
 
-	double *cosine = new double[quality];
-	double *sine = new double[quality];
+	std::vector<double> cosine(quality);
+	std::vector<double> sine(quality);
 	for (int i = 0; i < quality; i++)
 	{
 		sine[i] = sin(double(i) / quality * 2.0 * M_PI);
@@ -154,6 +156,8 @@ void cSSAOWorker::doWork()
 
 				if (params->SSAO_random_mode) rRandom = 0.5 + Random(65536) / 65536.0;
 
+				int rayCount = 0;
+
 				for (int angleIndex = 0; angleIndex < quality; angleIndex++)
 				{
 					double ca, sa;
@@ -171,6 +175,7 @@ void cSSAOWorker::doWork()
 					}
 
 					double max_diff = -1e50;
+					bool wasRay = false;
 
 					for (double r = 1.0; r < quality; r += rRandom)
 					{
@@ -181,6 +186,8 @@ void cSSAOWorker::doWork()
 						if (int(xx) == x && int(yy) == y) continue;
 						if (xx < startX || xx > endX - 1 || yy < startLine || yy > endLine - 1) continue;
 						double z2 = double(image->GetPixelZBuffer(int(xx), int(yy)));
+
+						wasRay = true;
 
 						double xx2, yy2;
 						if (perspectiveType == params::perspFishEye
@@ -220,10 +227,14 @@ void cSSAOWorker::doWork()
 					}
 					double max_angle = atan(max_diff);
 
-					ambient += -max_angle / M_PI + 0.5;
+					if (wasRay)
+					{
+						ambient += -max_angle / M_PI + 0.5;
+						rayCount++;
+					}
 				}
 
-				total_ambient = ambient / quality;
+				total_ambient = ambient / rayCount;
 				if (total_ambient < 0) total_ambient = 0;
 			}
 
@@ -244,8 +255,6 @@ void cSSAOWorker::doWork()
 
 		if (threadData->stopRequest) break;
 	}
-	delete[] sine;
-	delete[] cosine;
 
 	// emit signal to main thread when finished
 	emit finished();

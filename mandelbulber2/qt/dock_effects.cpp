@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -42,10 +42,11 @@
 #include "src/automated_widgets.hpp"
 #include "src/initparameters.hpp"
 #include "src/interface.hpp"
+#include "src/random.hpp"
 #include "src/render_window.hpp"
 #include "src/rendered_image_widget.hpp"
 #include "src/synchronize_interface.hpp"
-#include "src/system.hpp"
+#include "src/system_data.hpp"
 
 cDockEffects::cDockEffects(QWidget *parent) : QWidget(parent), ui(new Ui::cDockEffects)
 {
@@ -98,24 +99,28 @@ void cDockEffects::ConnectSignals() const
 		SLOT(slotChangedEnableMCDOF(bool)));
 	connect(ui->checkBox_DOF_MC_global_illumination, SIGNAL(stateChanged(int)), this,
 		SLOT(slotChangedEnableGI(int)));
+
+	connect(ui->pushButton_clouds_randomize, &QPushButton::clicked, this,
+		&cDockEffects::slotPressedButtonCloudsRandomize);
 }
 
-void cDockEffects::SynchronizeInterfaceBasicFogEnabled(cParameterContainer *par) const
+void cDockEffects::SynchronizeInterfaceBasicFogEnabled(
+	std::shared_ptr<cParameterContainer> par) const
 {
 	SynchronizeInterfaceWindow(ui->groupCheck_basic_fog_enabled, par, qInterface::write);
 }
 
-void cDockEffects::SynchronizeInterfaceDOFEnabled(cParameterContainer *par) const
+void cDockEffects::SynchronizeInterfaceDOFEnabled(std::shared_ptr<cParameterContainer> par) const
 {
 	SynchronizeInterfaceWindow(ui->groupCheck_DOF_enabled, par, qInterface::write);
 }
 
-void cDockEffects::SynchronizeInterfaceLights(cParameterContainer *par) const
+void cDockEffects::SynchronizeInterfaceLights(std::shared_ptr<cParameterContainer> par) const
 {
 	SynchronizeInterfaceWindow(ui->groupBox_Lights, par, qInterface::write);
 }
 
-void cDockEffects::SynchronizeInterfaceRandomLights(cParameterContainer *par) const
+void cDockEffects::SynchronizeInterfaceRandomLights(std::shared_ptr<cParameterContainer> par) const
 {
 	SynchronizeInterfaceWindow(ui->groupCheck_random_lights_group, par, qInterface::write);
 }
@@ -253,4 +258,12 @@ void cDockEffects::slotChangedEnableMCDOF(bool state)
 void cDockEffects::slotChangedEnableGI(int state)
 {
 	ui->checkBox_MC_global_illumination_volumetric->setEnabled(state);
+}
+
+void cDockEffects::slotPressedButtonCloudsRandomize()
+{
+	cRandom random;
+	random.Initialize(QTime::currentTime().msec());
+	int rnd = random.Random(100000);
+	ui->spinboxInt_clouds_random_seed->setValue(rnd);
 }

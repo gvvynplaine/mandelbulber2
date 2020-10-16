@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -32,7 +32,9 @@
  * c++ - opencl connector for the DOF OpenCL renderer
  */
 
-#include <QtCore>
+#include <memory>
+
+#include <QObject>
 
 #include "region.hpp"
 
@@ -55,12 +57,12 @@ public:
 	~cOpenClEngineRenderDOF() override;
 
 #ifdef USE_OPENCL
-	bool RenderDOF(const sParamRender *paramRender, const cParameterContainer *params, cImage *image,
-		bool *stopRequest, cRegion<int> screenRegion);
+	bool RenderDOF(const sParamRender *paramRender, const std::shared_ptr<cParameterContainer> params,
+		std::shared_ptr<cImage> image, bool *stopRequest, cRegion<int> screenRegion);
 	void Reset();
 
-	QScopedPointer<cOpenClEngineRenderDOFPhase1> dofEnginePhase1;
-	QScopedPointer<cOpenClEngineRenderDOFPhase2> dofEnginePhase2;
+	std::unique_ptr<cOpenClEngineRenderDOFPhase1> dofEnginePhase1;
+	std::unique_ptr<cOpenClEngineRenderDOFPhase2> dofEnginePhase2;
 #endif
 
 signals:

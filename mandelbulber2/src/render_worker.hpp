@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,6 +35,8 @@
 #ifndef MANDELBULBER2_SRC_RENDER_WORKER_HPP_
 #define MANDELBULBER2_SRC_RENDER_WORKER_HPP_
 
+#include <memory>
+
 #include <QObject>
 #include <QThread>
 
@@ -51,6 +53,9 @@ struct sRenderData;
 struct sParamRender;
 class cNineFractals;
 class cScheduler;
+class cPerlinNoiseOctaves;
+
+#define MAX_RAYMARCHING 10000
 
 // ambient occlusion data
 struct sVectorsAround
@@ -70,16 +75,17 @@ public:
 	{
 		int id;
 		int startLine;
-		cScheduler *scheduler;
+		std::shared_ptr<cScheduler> scheduler;
 	};
 
-	cRenderWorker(const sParamRender *_params, const cNineFractals *_fractal,
-		sThreadData *_threadData, sRenderData *_data, cImage *_image);
+	cRenderWorker(std::shared_ptr<const sParamRender> _params,
+		std::shared_ptr<const cNineFractals> _fractal, std::shared_ptr<sThreadData> _threadData,
+		std::shared_ptr<sRenderData> _data, std::shared_ptr<cImage> _image);
 	~cRenderWorker() override;
 
 	// PrepareAOVectors() is public because is needed also for OpenCL data
 	void PrepareAOVectors();
-	sVectorsAround *getAOVectorsAround() const { return AOVectorsAround; }
+	const sVectorsAround *getAOVectorsAround() const { return AOVectorsAround.data(); }
 	int getAoVectorsCount() const { return AOVectorsCount; }
 
 	QThread workerThread;
@@ -88,17 +94,17 @@ private:
 	// ray-marching step data
 	struct sStep
 	{
-		double distance;
-		double step;
+		double distance = 0.0;
+		double step = 0.0;
 		CVector3 point;
-		int iters;
-		double distThresh;
+		int iters = 0;
+		double distThresh = 0.0;
 	};
 
 	struct sRayBuffer
 	{
-		sStep *stepBuff;
-		int buffCount;
+		std::vector<sStep> stepBuff;
+		int buffCount = 0;
 	};
 
 	struct sRayMarchingIn
@@ -106,10 +112,10 @@ private:
 		inline sRayMarchingIn &operator=(const sRayMarchingIn &assign) = default;
 		CVector3 start;
 		CVector3 direction;
-		double minScan;
-		double maxScan;
-		bool binaryEnable;
-		bool invertMode;
+		double minScan = 0.0;
+		double maxScan = 0.0;
+		bool binaryEnable = false;
+		bool invertMode = false;
 	};
 
 	struct sRayMarchingInOut
@@ -122,11 +128,12 @@ private:
 	struct sRayMarchingOut
 	{
 		CVector3 point;
-		double lastDist;
-		double depth;
-		double distThresh;
-		int objectId;
-		bool found;
+		double lastDist = 0.0;
+		double depth = 0.0;
+		double distThresh = 0.0;
+		int objectId = 0;
+		bool found = false;
+		;
 	};
 
 	enum enumRayBranch
@@ -213,6 +220,8 @@ private:
 	double CalcDelta(CVector3 point) const;
 	static double IterOpacity(
 		double step, double iters, double maxN, double trim, double trimHigh, double opacitySp);
+	double CloudOpacity(
+		CVector3 point, double distance, double detailSize, double *distanceOut) const;
 	sRayRecursionOut RayRecursion(sRayRecursionIn in, sRayRecursionInOut &inOut);
 	void MonteCarloDOF(CVector3 *startRay, CVector3 *viewVector) const;
 	double MonteCarloDOFNoiseEstimation(
@@ -256,8 +265,8 @@ private:
 	const sParamRender *params;
 	const cNineFractals *fractal;
 	sRenderData *data;
-	sThreadData *threadData;
-	cImage *image;
+	std::shared_ptr<sThreadData> threadData;
+	std::shared_ptr<cImage> image;
 
 	// internal variables
 	int maxRaymarchingSteps;
@@ -274,10 +283,11 @@ private:
 	bool stopRequest;
 
 	// allocated objects
-	cCameraTarget *cameraTarget;
-	sRayBuffer *rayBuffer;
-	sRayStack *rayStack;
-	sVectorsAround *AOVectorsAround;
+	std::unique_ptr<cCameraTarget> cameraTarget;
+	std::vector<sRayBuffer> rayBuffer;
+	std::vector<sRayStack> rayStack;
+	std::vector<sVectorsAround> AOVectorsAround;
+	std::unique_ptr<cPerlinNoiseOctaves> perlinNoise;
 
 public slots:
 	void doWork();

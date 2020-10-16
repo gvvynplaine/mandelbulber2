@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -39,8 +39,9 @@ int GetInteger(int byte, __global char *array)
 }
 
 //------------------ MAIN RENDER FUNCTION --------------------
-kernel void fractal3D(__global float *outDistances, __global float *outColor, __global char *inBuff,
-	__constant sClInConstants *consts, __constant sClMeshExport *meshConfig)
+kernel void fractal3D(__global float *outDistances, __global float *outColor,
+	__global int *outIterations, __global char *inBuff, __constant sClInConstants *consts,
+	__constant sClMeshExport *meshConfig)
 {
 	// get actual pixel
 	const int imageX = get_global_id(0);
@@ -131,5 +132,6 @@ kernel void fractal3D(__global float *outDistances, __global float *outColor, __
 #endif
 
 	outDistances[buffIndex] = distance;
-	outColor[buffIndex] = color; // TODO color calculation
+	outColor[buffIndex] = color;
+	outIterations[buffIndex] = outF.iters;
 }

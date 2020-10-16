@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-17 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -37,6 +37,8 @@
 #ifndef MANDELBULBER2_SRC_MATERIAL_ITEM_MODEL_H_
 #define MANDELBULBER2_SRC_MATERIAL_ITEM_MODEL_H_
 
+#include <memory>
+
 #include <QtCore/qabstractitemmodel.h>
 
 // forward declarations
@@ -51,8 +53,8 @@ public:
 	~cMaterialItemModel() override;
 
 	// will be used to synchronize the data
-	void AssignContainer(cParameterContainer *_parameterContainer);
-	cParameterContainer *GetContainer() { return container; };
+	void AssignContainer(std::shared_ptr<cParameterContainer> _parameterContainer);
+	std::shared_ptr<cParameterContainer> GetContainer() { return container; };
 
 	// regenerate model from parameter container data
 	void Regenerate();
@@ -75,7 +77,7 @@ public:
 	int materialIndex(const QModelIndex &index) const;
 	QModelIndex getModelIndexByMaterialId(int materialId) const;
 
-	void insertRowWithParameters(const cParameterContainer *params1);
+	void insertRowWithParameters(const std::shared_ptr<cParameterContainer> params1);
 
 public slots:
 	void slotMaterialChanged(int matIndex);
@@ -83,7 +85,7 @@ public slots:
 private:
 	int FindFreeIndex();
 
-	cParameterContainer *container;
+	std::shared_ptr<cParameterContainer> container;
 	QList<int> materialIndexes;
 };
 

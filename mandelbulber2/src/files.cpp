@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -36,10 +36,18 @@
 
 #include <cstdio>
 #include <cstring>
+#include <memory>
+#include <vector>
+
+#include <QDir>
+#include <QFileInfo>
 
 #include "cimage.hpp"
 #include "error_message.hpp"
 #include "initparameters.hpp"
+#include "system_data.hpp"
+#include "system_directories.hpp"
+#include "write_log.hpp"
 
 // custom includes
 extern "C"
@@ -83,7 +91,7 @@ int fcopy(const char *source, const char *dest)
 
 	FILE *pFile;
 	long int lSize;
-	char *buffer;
+	std::vector<char> buffer;
 	size_t result;
 
 	pFile = fopen(source, "rb");
@@ -101,14 +109,13 @@ int fcopy(const char *source, const char *dest)
 	if (lSize > 0)
 	{
 		// allocate memory to contain the whole file:
-		buffer = new char[lSize];
+		buffer.resize(lSize);
 
 		// copy the file into the buffer:
-		result = fread(buffer, 1, lSize, pFile);
+		result = fread(buffer.data(), 1, lSize, pFile);
 		if (result != size_t(lSize))
 		{
 			qCritical() << "Can't read source file for copying: " << source;
-			delete[] buffer;
 			fclose(pFile);
 			return 2;
 		}
@@ -127,13 +134,69 @@ int fcopy(const char *source, const char *dest)
 	if (pFile == nullptr)
 	{
 		qCritical() << "Can't open destination file for copying: " << dest;
-		delete[] buffer;
 		return 3;
 	}
-	fwrite(buffer, 1, lSize, pFile);
+	fwrite(buffer.data(), 1, lSize, pFile);
 	fclose(pFile);
 
-	delete[] buffer;
+	return 0;
+}
+
+int fcopy(const QString &source, const QString &dest)
+{
+	// ------ file reading
+
+	std::vector<char> buffer;
+
+	FILE *pFile = fopen(source.toLocal8Bit().constData(), "rb");
+	if (pFile == nullptr)
+	{
+		qCritical() << "Can't open source file for copying: " << source << endl;
+		WriteLogString("Can't open source file for copying", source, 1);
+		return 1;
+	}
+
+	// obtain file size:
+	fseek(pFile, 0, SEEK_END);
+	const long int lSize = ftell(pFile);
+	rewind(pFile);
+
+	// allocate memory to contain the whole file:
+	if (lSize > 0)
+	{
+		buffer.resize(lSize);
+
+		// copy the file into the buffer:
+		const size_t result = fread(buffer.data(), 1, lSize, pFile);
+		if (result != size_t(lSize))
+		{
+			qCritical() << "Can't read source file for copying: " << source << endl;
+			WriteLogString("Can't read source file for copying", source, 1);
+			fclose(pFile);
+			return 2;
+		}
+	}
+	else
+	{
+		qCritical() << "Can't obtain file size: " << source;
+		fclose(pFile);
+		return 4;
+	}
+	fclose(pFile);
+
+	// ----- file writing
+
+	pFile = fopen(dest.toLocal8Bit().constData(), "wb");
+	if (pFile == nullptr)
+	{
+		qCritical() << "Can't open destination file for copying: " << dest << endl;
+		WriteLogString("Can't open destination file for copying", dest, 1);
+		return 3;
+	}
+	fwrite(buffer.data(), 1, lSize, pFile);
+	fclose(pFile);
+
+	WriteLogString("File copied", dest, 2);
 	return 0;
 }
 
@@ -187,8 +250,8 @@ void BufferNormalize16(sRGB16 *buffer, unsigned int size)
 	}
 }
 
-QStringList SaveImage(QString filename, ImageFileSave::enumImageFileType fileType, cImage *image,
-	QObject *updateReceiver)
+QStringList SaveImage(QString filename, ImageFileSave::enumImageFileType fileType,
+	std::shared_ptr<cImage> image, QObject *updateReceiver)
 {
 	QStringList listOfSavedFiles;
 
@@ -212,68 +275,59 @@ QStringList SaveImage(QString filename, ImageFileSave::enumImageFileType fileTyp
 
 	if (image->IsStereoLeftRight() && gPar->Get<bool>("stereoscopic_in_separate_files"))
 	{
-		cImage *leftImage = new cImage(1, 1, true);
-		cImage *rightImage = new cImage(1, 1, true);
+		std::shared_ptr<cImage> leftImage(new cImage(1, 1, true));
+		std::shared_ptr<cImage> rightImage(new cImage(1, 1, true));
 		image->GetStereoLeftRightImages(leftImage, rightImage);
 
 		// save left
 		{
 			QString fileWithoutExtension = ImageFileSave::ImageNameWithoutExtension(filename) + "_left";
-			ImageFileSave *imageFileSave =
+			std::shared_ptr<ImageFileSave> imageFileSave =
 				ImageFileSave::create(fileWithoutExtension, fileType, leftImage, imageConfig);
 			if (updateReceiver != nullptr)
 			{
-				QObject::connect(imageFileSave,
+				QObject::connect(imageFileSave.get(),
 					SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)), updateReceiver,
 					SLOT(slotUpdateProgressAndStatus(const QString &, const QString &, double)));
 			}
 			QStringList list = imageFileSave->SaveImage();
 			listOfSavedFiles.append(list);
-
-			delete imageFileSave;
 		}
 
 		// save right
 		{
 			QString fileWithoutExtension = ImageFileSave::ImageNameWithoutExtension(filename) + "_right";
-			ImageFileSave *imageFileSave =
+			std::shared_ptr<ImageFileSave> imageFileSave =
 				ImageFileSave::create(fileWithoutExtension, fileType, rightImage, imageConfig);
 			if (updateReceiver != nullptr)
 			{
-				QObject::connect(imageFileSave,
+				QObject::connect(imageFileSave.get(),
 					SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)), updateReceiver,
 					SLOT(slotUpdateProgressAndStatus(const QString &, const QString &, double)));
 			}
 			QStringList list = imageFileSave->SaveImage();
 			listOfSavedFiles.append(list);
-
-			delete imageFileSave;
 		}
-
-		delete leftImage;
-		delete rightImage;
 	}
 	else
 	{
 		QString fileWithoutExtension = ImageFileSave::ImageNameWithoutExtension(filename);
-		ImageFileSave *imageFileSave =
+		std::shared_ptr<ImageFileSave> imageFileSave =
 			ImageFileSave::create(fileWithoutExtension, fileType, image, imageConfig);
 		if (updateReceiver != nullptr)
 		{
-			QObject::connect(imageFileSave,
+			QObject::connect(imageFileSave.get(),
 				SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)), updateReceiver,
 				SLOT(slotUpdateProgressAndStatus(const QString &, const QString &, double)));
 		}
 		QStringList list = imageFileSave->SaveImage();
 		listOfSavedFiles.append(list);
-
-		delete imageFileSave;
 	}
 
 	return listOfSavedFiles;
 }
 
-sRGBA16 *LoadPNG(QString filename, int &outWidth, int &outHeight)
+std::vector<sRGBA16> LoadPNG(QString filename, int &outWidth, int &outHeight)
 {
 	png_structp png_ptr;
 	png_infop info_ptr;
@@ -281,14 +335,15 @@ sRGBA16 *LoadPNG(QString filename, int &outWidth, int &outHeight)
 	int color_type, interlace_type;
 	FILE *fp;
 
-	if ((fp = fopen(filename.toLocal8Bit().constData(), "rb")) == nullptr) return nullptr;
+	if ((fp = fopen(filename.toLocal8Bit().constData(), "rb")) == nullptr)
+		return std::vector<sRGBA16>();
 
 	png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
 
 	if (png_ptr == nullptr)
 	{
 		fclose(fp);
-		return nullptr;
+		return std::vector<sRGBA16>();
 	}
 
 	uchar sig[8];
@@ -299,14 +354,14 @@ sRGBA16 *LoadPNG(QString filename, int &outWidth, int &outHeight)
 	{
 		fclose(fp);
 		png_destroy_read_struct(&png_ptr, nullptr, nullptr);
-		return nullptr;
+		return std::vector<sRGBA16>();
 	}
 
 	if (!png_check_sig(sig, 8))
 	{
 		fclose(fp);
 		png_destroy_read_struct(&png_ptr, nullptr, nullptr);
-		return nullptr; /* bad signature */
+		return std::vector<sRGBA16>(); /* bad signature */
 	}
 
 	info_ptr = png_create_info_struct(png_ptr);
@@ -314,14 +369,14 @@ sRGBA16 *LoadPNG(QString filename, int &outWidth, int &outHeight)
 	{
 		fclose(fp);
 		png_destroy_read_struct(&png_ptr, nullptr, nullptr);
-		return nullptr;
+		return std::vector<sRGBA16>();
 	}
 
 	if (setjmp(png_jmpbuf(png_ptr)))
 	{
 		png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
 		fclose(fp);
-		return nullptr;
+		return std::vector<sRGBA16>();
 	}
 
 	png_init_io(png_ptr, fp);
@@ -340,7 +395,7 @@ sRGBA16 *LoadPNG(QString filename, int &outWidth, int &outHeight)
 	// unsigned int row_bytes = png_get_rowbytes(png_ptr, info_ptr);
 	// qDebug() << width << height << bit_depth << color_type << row_bytes;
 
-	sRGBA16 *image = new sRGBA16[outWidth * outHeight];
+	std::vector<sRGBA16> image(outWidth * outHeight);
 
 	png_bytepp row_pointers = png_get_rows(png_ptr, info_ptr);
 	if (bit_depth == 8)
@@ -364,7 +419,7 @@ sRGBA16 *LoadPNG(QString filename, int &outWidth, int &outHeight)
 				for (int x = 0; x < outWidth; x++)
 				{
 					unsigned char *pointer = static_cast<unsigned char *>(row_pointers[y]) + x * 4;
-					sRGBA16 pixel(pointer[0] * 256, pointer[1] * 256, pointer[2] * 256, pointer[2] * 256);
+					sRGBA16 pixel(pointer[0] * 256, pointer[1] * 256, pointer[2] * 256, pointer[3] * 256);
 					image[x + y * outWidth] = pixel;
 				}
 			}
@@ -441,7 +496,7 @@ QString FilePathHelper(const QString &path, const QStringList &pathList)
 	// examples don't depend on the launch directory
 	// For a relative path starting with "$SHARED_DIR", use "./$SHARED_DIR"
 	QString newPath = path;
-	newPath.replace(QRegExp("^\\$SHARED_DIR"), systemData.sharedDir);
+	newPath.replace(QRegExp("^\\$SHARED_DIR"), systemDirectories.sharedDir);
 
 	// original file was found
 	if (FileExists(newPath)) return newPath;
@@ -470,14 +525,15 @@ QString FilePathHelperTextures(const QString &path)
 	QFileInfo fi(nativePath);
 	QString fileName = fi.fileName();
 
-	QStringList pathList = {fileName, systemData.homeDir + "textures" + QDir::separator() + fileName,
-		systemData.sharedDir + "textures" + QDir::separator() + fileName,
-		systemData.homeDir + "mandelbulber2" + QDir::separator() + "textures" + QDir::separator()
+	QStringList pathList = {fileName,
+		systemDirectories.homeDir + "textures" + QDir::separator() + fileName,
+		systemDirectories.sharedDir + "textures" + QDir::separator() + fileName,
+		systemDirectories.homeDir + "mandelbulber2" + QDir::separator() + "textures" + QDir::separator()
 			+ fileName,
-		systemData.sharedDir + "mandelbulber2" + QDir::separator() + "textures" + QDir::separator()
-			+ fileName,
-		systemData.GetDataDirectoryUsed() + "textures" + QDir::separator() + fileName,
-		systemData.GetDataDirectoryUsed() + fileName,
+		systemDirectories.sharedDir + "mandelbulber2" + QDir::separator() + "textures"
+			+ QDir::separator() + fileName,
+		systemDirectories.GetDataDirectoryUsed() + "textures" + QDir::separator() + fileName,
+		systemDirectories.GetDataDirectoryUsed() + fileName,
 		QFileInfo(systemData.lastSettingsFile).path() + QDir::separator() + fileName};
 
 	return FilePathHelper(nativePath, pathList);
@@ -491,14 +547,15 @@ QString FilePathHelperSounds(const QString &path)
 	QFileInfo fi(nativePath);
 	QString fileName = fi.fileName();
 
-	QStringList pathList = {fileName, systemData.homeDir + "sounds" + QDir::separator() + fileName,
-		systemData.sharedDir + "sounds" + QDir::separator() + fileName,
-		systemData.homeDir + "mandelbulber2" + QDir::separator() + "sounds" + QDir::separator()
+	QStringList pathList = {fileName,
+		systemDirectories.homeDir + "sounds" + QDir::separator() + fileName,
+		systemDirectories.sharedDir + "sounds" + QDir::separator() + fileName,
+		systemDirectories.homeDir + "mandelbulber2" + QDir::separator() + "sounds" + QDir::separator()
 			+ fileName,
-		systemData.sharedDir + "mandelbulber2" + QDir::separator() + "sounds" + QDir::separator()
+		systemDirectories.sharedDir + "mandelbulber2" + QDir::separator() + "sounds" + QDir::separator()
 			+ fileName,
-		systemData.GetDataDirectoryUsed() + "sounds" + QDir::separator() + fileName,
-		systemData.GetDataDirectoryUsed() + fileName,
+		systemDirectories.GetDataDirectoryUsed() + "sounds" + QDir::separator() + fileName,
+		systemDirectories.GetDataDirectoryUsed() + fileName,
 		QFileInfo(systemData.lastSettingsFile).path() + QDir::separator() + fileName};
 
 	return FilePathHelper(nativePath, pathList);

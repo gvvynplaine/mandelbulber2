@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -78,7 +78,7 @@ sRGBAfloat cRenderWorker::BackgroundShader(const sShaderInputData &input) const
 				if (betaTexture > 0.5 * M_PI) betaTexture = 0.5 * M_PI - betaTexture;
 				if (betaTexture < -0.5 * M_PI) betaTexture = -0.5 * M_PI + betaTexture;
 
-				CVector2<double> tex(
+				CVector2<float> tex(
 					alphaTexture / (2.0 * M_PI) / params->backgroundHScale + params->backgroundTextureOffsetX,
 					(betaTexture / M_PI + 0.5) / params->backgroundVScale + params->backgroundTextureOffsetY);
 
@@ -107,7 +107,7 @@ sRGBAfloat cRenderWorker::BackgroundShader(const sShaderInputData &input) const
 				texX = (texX / params->backgroundHScale) + 0.5 + params->backgroundTextureOffsetX;
 				texY = (texY / params->backgroundVScale) + 0.5 + params->backgroundTextureOffsetY;
 
-				sRGBFloat pixel = data->textures.backgroundTexture.Pixel(CVector2<double>(texX, texY));
+				sRGBFloat pixel = data->textures.backgroundTexture.Pixel(CVector2<float>(texX, texY));
 				pixel2.R = pixel.R;
 				pixel2.G = pixel.G;
 				pixel2.B = pixel.B;
@@ -117,6 +117,7 @@ sRGBAfloat cRenderWorker::BackgroundShader(const sShaderInputData &input) const
 		pixel2.R *= params->background_brightness;
 		pixel2.G *= params->background_brightness;
 		pixel2.B *= params->background_brightness;
+		pixel2.A = 1.0;
 	}
 	else
 	{
@@ -166,9 +167,9 @@ sRGBAfloat cRenderWorker::BackgroundShader(const sShaderInputData &input) const
 		CVector3 viewVectorNorm = input.viewVector;
 		viewVectorNorm.Normalize();
 		double light =
-			(viewVectorNorm.Dot(input.lightVect) - 1.0) * 360.0 / params->mainLightVisibilitySize;
-		light =
-			1.0 / (1.0 + pow(light, 6.0)) * params->mainLightVisibility * params->mainLightIntensity;
+			-(viewVectorNorm.Dot(input.lightVect) - 1.0) * 360.0 / params->mainLightVisibilitySize;
+		light = 1.0 / (1.0 + pow(light, 6.0 * params->mainLightContourSharpness))
+						* params->mainLightVisibility * params->mainLightIntensity;
 		pixel2.R += light * params->mainLightColour.R;
 		pixel2.G += light * params->mainLightColour.G;
 		pixel2.B += light * params->mainLightColour.B;

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2015-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2015-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -40,6 +40,8 @@
 #ifndef MANDELBULBER2_SRC_KEYFRAMES_HPP_
 #define MANDELBULBER2_SRC_KEYFRAMES_HPP_
 
+#include <memory>
+
 #include "animation_frames.hpp"
 #include "morph.hpp"
 
@@ -54,18 +56,19 @@ public:
 	~cKeyframes() override;
 	cKeyframes(const cKeyframes &source);
 	cKeyframes &operator=(const cKeyframes &source);
-	sAnimationFrame GetInterpolatedFrame(
-		int index, cParameterContainer *params, cFractalContainer *fractal);
-	void GetInterpolatedFrameAndConsolidate(
-		int index, cParameterContainer *params, cFractalContainer *fractal);
+	sAnimationFrame GetInterpolatedFrame(int index, std::shared_ptr<cParameterContainer> params,
+		std::shared_ptr<cFractalContainer> fractal);
+	void GetInterpolatedFrameAndConsolidate(int index, std::shared_ptr<cParameterContainer> params,
+		std::shared_ptr<cFractalContainer> fractal);
 	void SetFramesPerKeyframe(int frPerKey) { framesPerKeyframe = frPerKey; }
 	int GetFramesPerKeyframe() const { return framesPerKeyframe; }
 	void ChangeMorphType(int parameterIndex, parameterContainer::enumMorphType morphType);
 	void ClearMorphCache() { morph.clear(); }
 	void AddAnimatedParameter(const QString &parameterName, const cOneParameter &defaultValue,
-		cParameterContainer *params = nullptr) override;
-	bool AddAnimatedParameter(const QString &fullParameterName, cParameterContainer *param,
-		const cFractalContainer *fractal) override;
+		std::shared_ptr<cParameterContainer> params = nullptr) override;
+	bool AddAnimatedParameter(const QString &fullParameterName,
+		std::shared_ptr<cParameterContainer> param,
+		std::shared_ptr<cFractalContainer> fractal) override;
 	void RemoveAnimatedParameter(const QString &fullParameterName) override;
 	void setAudioParameterPrefix() override;
 
@@ -74,6 +77,6 @@ private:
 	QList<cMorph *> morph;
 };
 
-extern cKeyframes *gKeyframes;
+extern std::shared_ptr<cKeyframes> gKeyframes;
 
 #endif /* MANDELBULBER2_SRC_KEYFRAMES_HPP_ */

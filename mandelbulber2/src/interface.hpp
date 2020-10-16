@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,6 +34,8 @@
 #ifndef MANDELBULBER2_SRC_INTERFACE_HPP_
 #define MANDELBULBER2_SRC_INTERFACE_HPP_
 
+#include <memory>
+
 #include <QtWidgets/QtWidgets>
 
 #include "algebra.hpp"
@@ -64,25 +66,25 @@ public:
 	void ShowUi();
 	void ConnectSignals() const;
 	void ConnectProgressAndStatisticsSignals() const;
-	void SynchronizeInterface(
-		cParameterContainer *par, cFractalContainer *parFractal, qInterface::enumReadWrite mode) const;
+	void SynchronizeInterface(std::shared_ptr<cParameterContainer> par,
+		std::shared_ptr<cFractalContainer> parFractal, qInterface::enumReadWrite mode) const;
 	void StartRender(bool noUndo = false);
 	void MoveCamera(QString buttonName, bool synchronizeAndRender = false);
 	void RotateCamera(QString buttonName, bool synchronizeAndRender = false);
 	void CameraOrTargetEdited() const;
 	void RotationEdited() const;
 	void CameraDistanceEdited() const;
-	void IFSDefaultsDodecahedron(cParameterContainer *parFractal) const;
-	void IFSDefaultsIcosahedron(cParameterContainer *parFractal) const;
-	static void IFSDefaultsOctahedron(cParameterContainer *parFractal);
-	static void IFSDefaultsMengerSponge(cParameterContainer *parFractal);
-	static void IFSDefaultsReset(cParameterContainer *parFractal);
+	void IFSDefaultsDodecahedron(std::shared_ptr<cParameterContainer> parFractal) const;
+	void IFSDefaultsIcosahedron(std::shared_ptr<cParameterContainer> parFractal) const;
+	static void IFSDefaultsOctahedron(std::shared_ptr<cParameterContainer> parFractal);
+	static void IFSDefaultsMengerSponge(std::shared_ptr<cParameterContainer> parFractal);
+	static void IFSDefaultsReset(std::shared_ptr<cParameterContainer> parFractal);
 	void RefreshMainImage();
 	void RefreshPostEffects();
 	void AutoFog() const;
 	double GetDistanceForPoint(CVector3 point) const;
-	static double GetDistanceForPoint(
-		CVector3 point, cParameterContainer *par, cFractalContainer *parFractal);
+	static double GetDistanceForPoint(CVector3 point, std::shared_ptr<cParameterContainer> par,
+		std::shared_ptr<cFractalContainer> parFractal);
 	void SetByMouse(
 		CVector2<double> screenPoint, Qt::MouseButton button, const QList<QVariant> &mode);
 	void MouseDragStart(CVector2<double> screenPoint, Qt::MouseButtons, const QList<QVariant> &mode);
@@ -98,7 +100,7 @@ public:
 	void SetBoundingBoxAsLimits(CVector3 outerBoundingMin, CVector3 outerBoundingMax);
 	void NewPrimitive(const QString &primitiveType, int index = 0);
 	void DeletePrimitive(const QString &primitiveName);
-	void RebuildPrimitives(cParameterContainer *par);
+	void RebuildPrimitives(std::shared_ptr<cParameterContainer> par);
 	void ComboMouseClickUpdate() const;
 	void AutoRecovery() const;
 	bool DataFolderUpgrade() const;
@@ -118,17 +120,18 @@ public:
 	void SaveLocalSettings(const QWidget *widget);
 	void LoadLocalSettings(const QWidget *widget);
 	void ResetLocalSettings(const QWidget *widget);
+	void RandomizeLocalSettings(const QWidget *widget);
 	QStringList CreateListOfParametersInWidget(const QWidget *widget);
 	bool QuitApplicationDialog();
 	void GlobalStopRequest();
 	void ResetGlobalStopRequest();
+	void CleanSettings();
 
 	QSettings settings;
 
 	RenderWindow *mainWindow;
 	cDetachedWindow *detachedWindow;
 	cHeadless *headless;
-	QImage *qImage;
 	RenderedImage *renderedImage;
 	PlayerWidget *imageSequencePlayer;
 	MyProgressBar *progressBar;
@@ -137,7 +140,7 @@ public:
 	MyProgressBar *progressBarQueueAnimation;
 	QFrame *progressBarFrame;
 	QVBoxLayout *progressBarLayout;
-	cImage *mainImage;
+	std::shared_ptr<cImage> mainImage;
 	QList<sPrimitiveItem> listOfPrimitives;
 	QTimer *autoRefreshTimer;
 	QTimer *stopRequestPulseTimer;
@@ -171,6 +174,9 @@ public:
 		QElapsedTimer lastRefreshTime;
 		qint64 lastStartRenderingTime{0};
 	} cameraDragData;
+
+private slots:
+	void slotAutoSaveImage(double timeSeconds);
 };
 
 extern cInterface *gMainInterface;

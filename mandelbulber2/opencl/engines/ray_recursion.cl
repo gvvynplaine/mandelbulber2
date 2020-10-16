@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -165,8 +165,8 @@ void RayMarching(sRayMarchingIn in, sRayMarchingOut *out, __constant sClInConsta
 #ifdef USE_REFRACTION
 		if (in.invertMode)
 		{
-			distance = distThresh * 1.99 - distance;
-			if (distance < 0.0) distance = 0.0;
+			distance = distThresh * 1.99f - distance;
+			if (distance < 0.0f) distance = 0.0f;
 		}
 #endif
 
@@ -227,8 +227,8 @@ void RayMarching(sRayMarchingIn in, sRayMarchingOut *out, __constant sClInConsta
 			//#ifdef USE_REFRACTION
 			if (in.invertMode)
 			{
-				distance = distThresh * 1.99 - distance;
-				if (distance < 0.0) distance = 0.0;
+				distance = distThresh * 1.99f - distance;
+				if (distance < 0.0f) distance = 0.0f;
 			}
 			//#endif
 
@@ -671,7 +671,7 @@ sRayRecursionOut RayRecursion(sRayRecursionIn in, sRenderData *renderData,
 #ifdef USE_REFRACTION
 			float4 transparentColor = (float4){shaderInputData.material->transparencyInteriorColor.s0,
 				shaderInputData.material->transparencyInteriorColor.s1,
-				shaderInputData.material->transparencyInteriorColor.s2, 0.0};
+				shaderInputData.material->transparencyInteriorColor.s2, 0.0f};
 			resultShader = transparentColor;
 #endif
 
@@ -717,8 +717,9 @@ sRayRecursionOut RayRecursion(sRayRecursionIn in, sRenderData *renderData,
 				sClGradientsCollection gradients;
 
 				specular = 0.0f;
+				float alpha = 1.0f;
 				objectShader = ObjectShader(consts, renderData, &shaderInputData, &calcParam, &objectColour,
-					&specular, &iridescence, &gradients);
+					&specular, &iridescence, &alpha, &gradients);
 
 #ifdef MONTE_CARLO_DOF_GLOBAL_ILLUMINATION
 				float3 globalIllumination = GlobalIlumination(
@@ -856,7 +857,7 @@ sRayRecursionOut RayRecursion(sRayRecursionIn in, sRenderData *renderData,
 				}
 #endif // USE_REFRACTION || USE_REFLECTANCE
 				resultShader = max(resultShader, 0.0f);
-				resultShader.w = 1.0f;
+				resultShader.w = alpha;
 			}
 			else
 			{
@@ -878,10 +879,10 @@ sRayRecursionOut RayRecursion(sRayRecursionIn in, sRenderData *renderData,
 				for (int index = shaderInputData.stepCount - 1; index > 0; index--)
 				{
 
-					float opacity = (-1.0 + 1.0 / shaderInputData.material->transparencyOfInterior) * step;
-					if (opacity > 1.0) opacity = 1.0;
+					float opacity = (-1.0f + 1.0f / shaderInputData.material->transparencyOfInterior) * step;
+					if (opacity > 1.0f) opacity = 1.0f;
 
-					resultShader = opacity * transparentColor + (1.0 - opacity) * resultShader;
+					resultShader = opacity * transparentColor + (1.0f - opacity) * resultShader;
 				}
 			}
 			else

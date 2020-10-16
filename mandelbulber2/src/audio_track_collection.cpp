@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,12 +34,13 @@
 
 #include "audio_track_collection.h"
 
+#include <memory>
+
 #include "audio_track.h"
 #include "global_data.hpp"
 #include "one_parameter.hpp"
 #include "parameters.hpp"
 #include "resource_http_provider.hpp"
-#include "system.hpp"
 
 cAudioTrackCollection::cAudioTrackCollection() = default;
 
@@ -61,7 +62,7 @@ cAudioTrackCollection &cAudioTrackCollection::operator=(const cAudioTrackCollect
 }
 
 void cAudioTrackCollection::AddAudioTrack(
-	const QString fullParameterName, cParameterContainer *params)
+	const QString fullParameterName, std::shared_ptr<cParameterContainer> params)
 {
 	if (audioTracks.contains(fullParameterName))
 	{
@@ -70,7 +71,7 @@ void cAudioTrackCollection::AddAudioTrack(
 	}
 	else
 	{
-		audioTracks.insert(fullParameterName, QSharedPointer<cAudioTrack>(new cAudioTrack()));
+		audioTracks.insert(fullParameterName, std::shared_ptr<cAudioTrack>(new cAudioTrack()));
 		if (params) // params is nullptr when audio tracks are regenerated
 		{
 			AddParameters(params, fullParameterName);
@@ -79,7 +80,7 @@ void cAudioTrackCollection::AddAudioTrack(
 }
 
 void cAudioTrackCollection::DeleteAudioTrack(
-	const QString fullParameterName, cParameterContainer *params)
+	const QString fullParameterName, std::shared_ptr<cParameterContainer> params)
 {
 	if (audioTracks.contains(fullParameterName))
 	{
@@ -93,7 +94,7 @@ void cAudioTrackCollection::DeleteAudioTrack(
 	}
 }
 
-void cAudioTrackCollection::DeleteAllAudioTracks(cParameterContainer *params)
+void cAudioTrackCollection::DeleteAllAudioTracks(std::shared_ptr<cParameterContainer> params)
 {
 	QStringList listOfAllParameters = audioTracks.keys();
 
@@ -103,7 +104,7 @@ void cAudioTrackCollection::DeleteAllAudioTracks(cParameterContainer *params)
 	}
 }
 
-QSharedPointer<cAudioTrack> cAudioTrackCollection::GetAudioTrackPtr(
+std::shared_ptr<cAudioTrack> cAudioTrackCollection::GetAudioTrackPtr(
 	const QString fullParameterName) const
 {
 	if (audioTracks.contains(fullParameterName))
@@ -114,12 +115,12 @@ QSharedPointer<cAudioTrack> cAudioTrackCollection::GetAudioTrackPtr(
 	{
 		qCritical() << "cAudioTrackCollection::GetAudioTrackPtr(): element '" << fullParameterName
 								<< "' doesn't exist";
-		return QSharedPointer<cAudioTrack>(nullptr);
+		return std::shared_ptr<cAudioTrack>(nullptr);
 	}
 }
 
 void cAudioTrackCollection::AddParameters(
-	cParameterContainer *params, const QString parameterName) const
+	std::shared_ptr<cParameterContainer> params, const QString parameterName) const
 {
 	if (!params->IfExists(FullParameterName("enable", parameterName)))
 	{
@@ -158,7 +159,7 @@ void cAudioTrackCollection::AddParameters(
 }
 
 void cAudioTrackCollection::RemoveParameters(
-	cParameterContainer *params, const QString parameterName) const
+	std::shared_ptr<cParameterContainer> params, const QString parameterName) const
 {
 	if (params->IfExists(FullParameterName("enable", parameterName)))
 	{
@@ -186,7 +187,7 @@ QString cAudioTrackCollection::FullParameterName(
 	return prefix + QString("_") + nameOfSoundParameter + "_" + parameterName;
 }
 
-void cAudioTrackCollection::LoadAllAudioFiles(cParameterContainer *params)
+void cAudioTrackCollection::LoadAllAudioFiles(std::shared_ptr<cParameterContainer> params)
 {
 	QStringList listOfAllParameters = audioTracks.keys();
 
@@ -209,7 +210,7 @@ void cAudioTrackCollection::LoadAllAudioFiles(cParameterContainer *params)
 	}
 }
 
-void cAudioTrackCollection::RefreshAllAudioTracks(cParameterContainer *params)
+void cAudioTrackCollection::RefreshAllAudioTracks(std::shared_ptr<cParameterContainer> params)
 {
 	QStringList listOfAllParameters = audioTracks.keys();
 

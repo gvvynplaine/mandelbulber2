@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -39,20 +39,21 @@
 
 #include "src/animation_flight.hpp"
 #include "src/files.h"
+#include "src/radiance_hdr.h"
 #include "src/resource_http_provider.hpp"
 
 FileSelectWidget::FileSelectWidget(QWidget *parent) : QWidget(parent), CommonMyWidgetWrapper(this)
 {
-	QFrame *frameTextAndButton = new QFrame;
-	QHBoxLayout *layoutTextAndButton = new QHBoxLayout;
+	QFrame *frameTextAndButton = new QFrame(this);
+	QHBoxLayout *layoutTextAndButton = new QHBoxLayout();
 	QVBoxLayout *layout = new QVBoxLayout(this);
 	layout->setContentsMargins(0, 0, 0, 0);
 	layout->setSpacing(2);
 	layoutTextAndButton->setContentsMargins(0, 0, 0, 0);
 	layoutTextAndButton->setSpacing(2);
-	lineEdit = new QLineEdit;
-	button = new QPushButton;
-	labelImage = new QLabel;
+	lineEdit = new QLineEdit(this);
+	button = new QPushButton(this);
+	labelImage = new QLabel(this);
 	labelImage->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
 	labelImage->setContentsMargins(0, 0, 0, 0);
 	labelImage->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
@@ -120,7 +121,7 @@ void FileSelectWidget::slotSelectFile()
 {
 	PreviewFileDialog dialog(this);
 	dialog.setFileMode(QFileDialog::ExistingFile);
-	dialog.setNameFilter(tr("Images (*.jpg *.jpeg *.png *.bmp)"));
+	dialog.setNameFilter(tr("Images (*.jpg *.jpeg *.png *.bmp *.hdr)"));
 	dialog.setDirectory(QDir::toNativeSeparators(lineEdit->text()));
 	dialog.selectFile(QDir::toNativeSeparators(lineEdit->text()));
 	dialog.setAcceptMode(QFileDialog::AcceptOpen);
@@ -150,7 +151,19 @@ void FileSelectWidget::slotChangedFile()
 		cResourceHttpProvider httpProvider(filename);
 		if (httpProvider.IsUrl()) filename = httpProvider.cacheAndGetFilename();
 
-		QPixmap pixmap(filename);
+		QPixmap pixmap;
+
+		cRadianceHDR radianceHDR;
+		int w;
+		int h;
+		if (radianceHDR.Init(filename, &w, &h))
+		{
+			radianceHDR.LoadToQPixmap(&pixmap);
+		}
+		else
+		{
+			pixmap.load(filename);
+		}
 
 		if (pixmap.isNull())
 		{

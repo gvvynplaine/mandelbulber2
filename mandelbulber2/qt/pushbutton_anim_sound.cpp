@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,6 +35,8 @@
 
 #include "pushbutton_anim_sound.h"
 
+#include <memory>
+
 #include "audio_selector.h"
 
 #include "src/animation_frames.hpp"
@@ -63,8 +65,8 @@ void cPushButtonAnimSound::slotUpdateButton()
 	QFont f = font();
 	if (animationFrames)
 	{
-		QSharedPointer<cAudioTrack> audio = animationFrames->GetAudioPtr(parameterName);
-		if (!audio.isNull() && audio->isLoaded())
+		std::shared_ptr<cAudioTrack> audio = animationFrames->GetAudioPtr(parameterName);
+		if (audio && audio->isLoaded())
 		{
 			setText(tr("Audio loaded"));
 			f.setBold(true);

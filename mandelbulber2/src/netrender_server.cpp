@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2019 Mandelbulber Team        §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2019-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -47,10 +47,12 @@
 #include "netrender_file_receiver.hpp"
 #include "render_window.hpp"
 #include "settings.hpp"
-#include "system.hpp"
+#include "system_data.hpp"
 #include "texture.hpp"
+#include "wait.hpp"
+#include "write_log.hpp"
 
-cNetRenderServer::cNetRenderServer()
+cNetRenderServer::cNetRenderServer(QObject *parent) : QObject(parent)
 {
 	actualId = 0;
 	server = nullptr;
@@ -284,12 +286,12 @@ bool cNetRenderServer::WaitForAllClientsReady(double timeout)
 	return false;
 }
 
-void cNetRenderServer::SetCurrentJob(
-	const cParameterContainer &settings, const cFractalContainer &fractal, QStringList listOfTextures)
+void cNetRenderServer::SetCurrentJob(std::shared_ptr<const cParameterContainer> settings,
+	std::shared_ptr<const cFractalContainer> fractal, QStringList listOfTextures)
 {
 	WriteLog(QString("NetRender - Sending job to %1 client(s)").arg(clients.size()), 2);
 	cSettings settingsData(cSettings::formatNetRender);
-	size_t dataSize = settingsData.CreateText(&settings, &fractal);
+	size_t dataSize = settingsData.CreateText(settings, fractal);
 	if (dataSize > 0)
 	{
 		QString settingsText = settingsData.GetSettingsText();
@@ -343,8 +345,8 @@ void cNetRenderServer::SetCurrentJob(
 	}
 }
 
-void cNetRenderServer::SetCurrentAnimation(
-	const cParameterContainer &settings, const cFractalContainer &fractal, bool isFlight)
+void cNetRenderServer::SetCurrentAnimation(std::shared_ptr<const cParameterContainer> settings,
+	std::shared_ptr<const cFractalContainer> fractal, bool isFlight)
 {
 	WriteLog(QString("NetRender - Sending animation to %1 client(s)").arg(clients.size()), 2);
 	cSettings settingsData(cSettings::formatFullText);
@@ -353,11 +355,11 @@ void cNetRenderServer::SetCurrentAnimation(
 
 	if (isFlight)
 	{
-		dataSize = settingsData.CreateText(&settings, &fractal, gAnimFrames, nullptr);
+		dataSize = settingsData.CreateText(settings, fractal, gAnimFrames, nullptr);
 	}
 	else
 	{
-		dataSize = settingsData.CreateText(&settings, &fractal, nullptr, gKeyframes);
+		dataSize = settingsData.CreateText(settings, fractal, nullptr, gKeyframes);
 	}
 
 	if (dataSize > 0)

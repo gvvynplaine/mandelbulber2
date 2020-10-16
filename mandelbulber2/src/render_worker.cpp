@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,8 +34,6 @@
 
 #include "render_worker.hpp"
 
-#include <QtCore>
-
 #include "ao_modes.h"
 #include "calculate_distance.hpp"
 #include "camera_target.hpp"
@@ -45,26 +43,25 @@
 #include "fractparams.hpp"
 #include "hsv2rgb.h"
 #include "material.h"
+#include "perlin_noise_octaves.h"
 #include "projection_3d.hpp"
 #include "region.hpp"
 #include "render_data.hpp"
 #include "scheduler.hpp"
 #include "stereo.h"
-#include "system.hpp"
+#include "system_data.hpp"
 #include "texture.hpp"
 
-cRenderWorker::cRenderWorker(const sParamRender *_params, const cNineFractals *_fractal,
-	sThreadData *_threadData, sRenderData *_data, cImage *_image)
+cRenderWorker::cRenderWorker(std::shared_ptr<const sParamRender> _params,
+	std::shared_ptr<const cNineFractals> _fractal, std::shared_ptr<sThreadData> _threadData,
+	std::shared_ptr<sRenderData> _data, std::shared_ptr<cImage> _image)
 {
-	params = _params;
-	fractal = _fractal;
-	data = _data;
+	params = _params.get();
+	fractal = _fractal.get();
+	data = _data.get();
 	image = _image;
 	threadData = _threadData;
 	cameraTarget = nullptr;
-	rayBuffer = nullptr;
-	rayStack = nullptr;
-	AOVectorsAround = nullptr;
 	AOVectorsCount = 0;
 	baseX = CVector3(1.0, 0.0, 0.0);
 	baseY = CVector3(0.0, 1.0, 0.0);
@@ -77,28 +74,7 @@ cRenderWorker::cRenderWorker(const sParamRender *_params, const cNineFractals *_
 
 cRenderWorker::~cRenderWorker()
 {
-	if (cameraTarget)
-	{
-		delete cameraTarget;
-		cameraTarget = nullptr;
-	}
-
-	if (rayBuffer)
-	{
-		for (int i = 0; i < reflectionsMax + 3; i++)
-		{
-			delete[] rayBuffer[i].stepBuff;
-		}
-		delete[] rayBuffer;
-	}
-
-	if (AOVectorsAround)
-	{
-		delete[] AOVectorsAround;
-		AOVectorsAround = nullptr;
-	}
-
-	if (rayStack) delete[] rayStack;
+	// nothing to delete
 }
 
 // main render engine function called as multiple threads
@@ -123,8 +99,10 @@ void cRenderWorker::doWork()
 	if (params->ambientOcclusionEnabled && params->ambientOcclusionMode == params::AOModeMultipleRays)
 		PrepareAOVectors();
 
+	perlinNoise.reset(new cPerlinNoiseOctaves(params->cloudsRandomSeed));
+
 	// init of scheduler
-	cScheduler *scheduler = threadData->scheduler;
+	cScheduler *scheduler = threadData->scheduler.get();
 
 	// start point for ray-marching
 	CVector3 start = params->camera;
@@ -329,7 +307,7 @@ void cRenderWorker::doWork()
 					sRayRecursionInOut recursionInOut;
 					sRayMarchingInOut rayMarchingInOut;
 					rayMarchingInOut.buffCount = &rayBuffer[0].buffCount;
-					rayMarchingInOut.stepBuff = rayBuffer[0].stepBuff;
+					rayMarchingInOut.stepBuff = rayBuffer[0].stepBuff.data();
 					recursionInOut.rayMarchingInOut = rayMarchingInOut;
 
 					sRayRecursionOut recursionOut = RayRecursion(recursionIn, recursionInOut);
@@ -497,7 +475,7 @@ void cRenderWorker::doWork()
 // calculation of base vectors
 void cRenderWorker::PrepareMainVectors()
 {
-	cameraTarget = new cCameraTarget(params->camera, params->target, params->topVector);
+	cameraTarget.reset(new cCameraTarget(params->camera, params->target, params->topVector));
 	// cameraTarget->SetCameraTargetRotation(params->camera, params->target, params->viewAngle);
 	viewAngle = cameraTarget->GetRotation();
 
@@ -540,22 +518,22 @@ void cRenderWorker::PrepareReflectionBuffer()
 
 	reflectionsMax = params->reflectionsMax * 1;
 	if (!params->raytracedReflections) reflectionsMax = 0;
-	rayBuffer = new sRayBuffer[reflectionsMax + 4];
+	rayBuffer.resize(reflectionsMax + 4);
 
 	for (int i = 0; i < reflectionsMax + 3; i++)
 	{
 		// rayMarching buffers
-		rayBuffer[i].stepBuff = new sStep[maxRaymarchingSteps + 2];
+		rayBuffer[i].stepBuff.resize(maxRaymarchingSteps + 2);
 		rayBuffer[i].buffCount = 0;
 	}
 
-	rayStack = new sRayStack[reflectionsMax + 1];
+	rayStack.resize(reflectionsMax + 1);
 }
 
 // calculating vectors for AmbientOcclusion
 void cRenderWorker::PrepareAOVectors()
 {
-	AOVectorsAround = new sVectorsAround[10000];
+	AOVectorsAround.resize(10000);
 	AOVectorsCount = 0;
 	int counter = 0;
 	int lightMapWidth = data->textures.lightmapTexture.Width();
@@ -573,9 +551,7 @@ void cRenderWorker::PrepareAOVectors()
 			AOVectorsAround[counter].v = d;
 			int X = int((a + b) / (2.0 * M_PI) * lightMapWidth + lightMapWidth * 8.5) % lightMapWidth;
 			int Y = int(b / (M_PI)*lightMapHeight + lightMapHeight * 8.5) % lightMapHeight;
-			sRGBFloat color(data->textures.lightmapTexture.FastPixel(X, Y).R / 65535.0,
-				data->textures.lightmapTexture.FastPixel(X, Y).G / 65535.0,
-				data->textures.lightmapTexture.FastPixel(X, Y).B / 65535.0);
+			sRGBFloat color(data->textures.lightmapTexture.FastPixel(X, Y));
 			AOVectorsAround[counter].color = color;
 
 			if (AOVectorsAround[counter].color.R > 0.001 || AOVectorsAround[counter].color.G > 0.001
@@ -659,7 +635,7 @@ void cRenderWorker::RayMarching(
 	CVector3 lastPoint;
 	bool deadComputationFound = false;
 
-	for (int i = 0; i < 10000; i++)
+	for (int i = 0; i < MAX_RAYMARCHING; i++)
 	{
 		lastPoint = point;
 
@@ -746,6 +722,8 @@ void cRenderWorker::RayMarching(
 		}
 	}
 	//------------- 83.2473 us for RayMarching loop -------------------------
+
+	point = in.start + in.direction * scan;
 
 	// qDebug() << "------------ binary search";
 	if (found && in.binaryEnable && !deadComputationFound)
@@ -968,7 +946,7 @@ cRenderWorker::sRayRecursionOut cRenderWorker::RayRecursion(
 							// setup buffers for ray data
 
 							rayMarchingInOut.buffCount = &rayBuffer[rayIndex].buffCount;
-							rayMarchingInOut.stepBuff = rayBuffer[rayIndex].stepBuff;
+							rayMarchingInOut.stepBuff = rayBuffer[rayIndex].stepBuff.data();
 							inOut.rayMarchingInOut = rayMarchingInOut;
 
 							// recursion for reflection
@@ -1030,7 +1008,7 @@ cRenderWorker::sRayRecursionOut cRenderWorker::RayRecursion(
 
 							// setup buffers for ray data
 							rayMarchingInOut.buffCount = &rayBuffer[rayIndex].buffCount;
-							rayMarchingInOut.stepBuff = rayBuffer[rayIndex].stepBuff;
+							rayMarchingInOut.stepBuff = rayBuffer[rayIndex].stepBuff.data();
 							inOut.rayMarchingInOut = rayMarchingInOut;
 
 							// recursion for refraction
@@ -1074,7 +1052,7 @@ cRenderWorker::sRayRecursionOut cRenderWorker::RayRecursion(
 			sRGBAfloat transparentShader = rayStack[rayIndex].transparentShader;
 
 			inOut.rayMarchingInOut.buffCount = &rayBuffer[rayIndex].buffCount;
-			inOut.rayMarchingInOut.stepBuff = rayBuffer[rayIndex].stepBuff;
+			inOut.rayMarchingInOut.stepBuff = rayBuffer[rayIndex].stepBuff.data();
 
 			// prepare data for shaders
 			CVector3 lightVector = shadowVector;
@@ -1199,6 +1177,7 @@ cRenderWorker::sRayRecursionOut cRenderWorker::RayRecursion(
 				resultShader.R = (objectShader.R + recursionOut.specular.R);
 				resultShader.G = (objectShader.G + recursionOut.specular.G);
 				resultShader.B = (objectShader.B + recursionOut.specular.B);
+				resultShader.A = objectShader.A;
 
 				if (shaderInputData.material->useColorsFromPalette
 						&& shaderInputData.material->transparencyGradientEnable)

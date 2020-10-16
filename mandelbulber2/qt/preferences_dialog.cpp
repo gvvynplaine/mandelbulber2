@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,10 +34,11 @@
 
 #include "preferences_dialog.h"
 
+#include <memory>
+
 #include <QCryptographicHash>
 #include <QFileDialog>
 #include <QMessageBox>
-#include <QtCore>
 
 #include "ui_preferences_dialog.h"
 
@@ -59,6 +60,9 @@
 #include "src/render_window.hpp"
 #include "src/settings.hpp"
 #include "src/system.hpp"
+#include "src/system_data.hpp"
+#include "src/system_directories.hpp"
+#include "src/wait.hpp"
 
 cPreferencesDialog::cPreferencesDialog(QWidget *parent)
 		: QDialog(parent), ui(new Ui::cPreferencesDialog)
@@ -189,7 +193,7 @@ void cPreferencesDialog::on_pushButton_select_textures_path_clicked()
 
 void cPreferencesDialog::on_pushButton_clear_thumbnail_cache_clicked() const
 {
-	QDir thumbnailDir(systemData.GetThumbnailsFolder());
+	QDir thumbnailDir(systemDirectories.GetThumbnailsFolder());
 	thumbnailDir.setFilter(QDir::AllEntries | QDir::NoDotAndDotDot);
 	uint thumbnailDirCount = thumbnailDir.count();
 
@@ -205,7 +209,7 @@ void cPreferencesDialog::on_pushButton_clear_thumbnail_cache_clicked() const
 	{
 		// match exact 32 char hash images, example filename: c0ad626d8c25ab6a25c8d19a53960c8a.png
 		DeleteAllFilesFromDirectory(
-			systemData.GetThumbnailsFolder(), "????????????????????????????????.*");
+			systemDirectories.GetThumbnailsFolder(), "????????????????????????????????.*");
 	}
 	else
 	{
@@ -225,7 +229,7 @@ void cPreferencesDialog::on_pushButton_load_thumbnail_cache_clicked() const
 	{
 		cFileDownloader fileDownloader(
 			QString("http://cdn.mandelbulber.org/thumbnail/%1").arg(MANDELBULBER_VERSION_STRING),
-			systemData.GetThumbnailsFolder());
+			systemDirectories.GetThumbnailsFolder());
 		QObject::connect(&fileDownloader,
 			SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)),
 			gMainInterface->mainWindow,
@@ -260,7 +264,7 @@ void cPreferencesDialog::on_pushButton_generate_thumbnail_cache_clicked()
 		QStringList listOfFiles;
 
 		{
-			QString examplePath = QDir::toNativeSeparators(systemData.sharedDir + "examples");
+			QString examplePath = QDir::toNativeSeparators(systemDirectories.sharedDir + "examples");
 			QDirIterator it(
 				examplePath, QStringList() << "*.fract", QDir::Files, QDirIterator::Subdirectories);
 			QStringList exampleFiles;
@@ -268,17 +272,17 @@ void cPreferencesDialog::on_pushButton_generate_thumbnail_cache_clicked()
 				listOfFiles << it.next();
 		}
 		{
-			QDirIterator it(systemData.GetSettingsFolder(), QStringList() << "*.fract", QDir::Files,
-				QDirIterator::Subdirectories);
+			QDirIterator it(systemDirectories.GetSettingsFolder(), QStringList() << "*.fract",
+				QDir::Files, QDirIterator::Subdirectories);
 			QStringList settingsFiles;
 			while (it.hasNext())
 				listOfFiles << it.next();
 		}
 
-		cParameterContainer *examplePar = new cParameterContainer;
-		cFractalContainer *exampleParFractal = new cFractalContainer;
-		cThumbnailWidget *thumbWidget = new cThumbnailWidget(200, 200, 1, this);
-		QObject::connect(thumbWidget,
+		std::shared_ptr<cParameterContainer> examplePar(new cParameterContainer);
+		std::shared_ptr<cFractalContainer> exampleParFractal(new cFractalContainer);
+		std::unique_ptr<cThumbnailWidget> thumbWidget(new cThumbnailWidget(200, 200, 1));
+		QObject::connect(thumbWidget.get(),
 			SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)),
 			gMainInterface->mainWindow,
 			SLOT(slotUpdateProgressAndStatus(const QString &, const QString &, double)));
@@ -292,8 +296,8 @@ void cPreferencesDialog::on_pushButton_generate_thumbnail_cache_clicked()
 		/*******************************************************************/
 		for (int i = 0; i < NUMBER_OF_FRACTALS; i++)
 		{
-			exampleParFractal->at(i).SetContainerName(QString("fractal") + QString::number(i));
-			InitFractalParams(&exampleParFractal->at(i));
+			exampleParFractal->at(i)->SetContainerName(QString("fractal") + QString::number(i));
+			InitFractalParams(exampleParFractal->at(i));
 		}
 		for (int i = 0; i < listOfFiles.size(); i++)
 		{
@@ -315,7 +319,7 @@ void cPreferencesDialog::on_pushButton_generate_thumbnail_cache_clicked()
 				examplePar->Set("opencl_enabled", gPar->Get<bool>("opencl_enabled"));
 
 				thumbWidget->DisableTimer();
-				thumbWidget->AssignParameters(*examplePar, *exampleParFractal);
+				thumbWidget->AssignParameters(examplePar, exampleParFractal);
 				if (!thumbWidget->IsRendered())
 				{
 					thumbWidget->slotRender();
@@ -338,9 +342,6 @@ void cPreferencesDialog::on_pushButton_generate_thumbnail_cache_clicked()
 				}
 			}
 		}
-		delete exampleParFractal;
-		delete examplePar;
-		delete thumbWidget;
 	}
 	else
 	{
@@ -523,4 +524,25 @@ void cPreferencesDialog::UpdateOpenCLMemoryLimits()
 				.arg(maxMemAllocSize - 1));
 	}
 }
+
+void cPreferencesDialog::on_pushButton_select_clang_format_path_clicked()
+{
+	QFileDialog dialog(this);
+	dialog.setOption(QFileDialog::DontUseNativeDialog);
+	dialog.setFileMode(QFileDialog::ExistingFile);
+	dialog.setDirectory(
+		QDir::toNativeSeparators(QFileInfo(ui->text_clang_format_path->text()).absolutePath()));
+	dialog.setNameFilter(tr(
+		"clang-format executable (clang-format.exe clang-format-*.exe clang-format-* clang-format)"));
+	dialog.setAcceptMode(QFileDialog::AcceptOpen);
+	dialog.setWindowTitle(
+		tr("Select clang-format executable (exe on windows, program name on MacOS / Linux)..."));
+	if (dialog.exec())
+	{
+		QStringList filenames = dialog.selectedFiles();
+		const QString filename = QDir::toNativeSeparators(filenames.first());
+		ui->text_clang_format_path->setText(filename);
+	}
+}
+
 #endif

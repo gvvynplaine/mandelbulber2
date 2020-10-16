@@ -430,10 +430,10 @@
            <number>6</number>
           </property>
           <property name="minimum">
-           <double>-180.000000000000000</double>
+           <double>-36000.000000000000000</double>
           </property>
           <property name="maximum">
-           <double>180.000000000000000</double>
+           <double>36000.000000000000000</double>
           </property>
           <property name="singleStep">
            <double>1.000000000000000</double>
@@ -465,10 +465,10 @@
            <number>6</number>
           </property>
           <property name="minimum">
-           <double>-180.000000000000000</double>
+           <double>-36000.000000000000000</double>
           </property>
           <property name="maximum">
-           <double>180.000000000000000</double>
+           <double>36000.000000000000000</double>
           </property>
           <property name="singleStep">
            <double>1.000000000000000</double>
@@ -507,10 +507,10 @@
            <number>6</number>
           </property>
           <property name="minimum">
-           <double>-180.000000000000000</double>
+           <double>-36000.000000000000000</double>
           </property>
           <property name="maximum">
-           <double>180.000000000000000</double>
+           <double>36000.000000000000000</double>
           </property>
           <property name="singleStep">
            <double>1.000000000000000</double>
@@ -3057,7 +3057,8 @@
         </property>
         <property name="text">
          <string notr="true">&lt;body style=&quot;background-color:#fff5ee&quot;&gt;
-&lt;pre style=&quot;color:#000000; background-color:#fff5ee;  font-family:'Courier New',monospace;&quot;&gt;&lt;span style=&quot;color:#2e8b57; font-weight:bold&quot;&gt;void&lt;/span&gt; &lt;span style=&quot;color:#00008f&quot;&gt;PseudoKleinianMod1Iteration&lt;/span&gt;&lt;span style=&quot;color:#676767&quot;&gt;(&lt;/span&gt;CVector4 &lt;span style=&quot;color:#676767&quot;&gt;&amp;amp;&lt;/span&gt;z&lt;span style=&quot;color:#676767&quot;&gt;,&lt;/span&gt; &lt;span style=&quot;color:#2e8b57; font-weight:bold&quot;&gt;const&lt;/span&gt; sFractal &lt;span style=&quot;color:#676767&quot;&gt;*&lt;/span&gt;fractal&lt;span style=&quot;color:#676767&quot;&gt;,&lt;/span&gt; sExtendedAux &lt;span style=&quot;color:#676767&quot;&gt;&amp;amp;&lt;/span&gt;aux&lt;span style=&quot;color:#676767&quot;&gt;)&lt;/span&gt;
+&lt;pre style=&quot;color:#000000; background-color:#fff5ee;  font-family:'Courier New',monospace;&quot;&gt;&lt;span style=&quot;color:#2e8b57; font-weight:bold&quot;&gt;void&lt;/span&gt; &lt;span style=&quot;color:#00008f&quot;&gt;PseudoKleinianMod1Iteration&lt;/span&gt;&lt;span style=&quot;color:#676767&quot;&gt;(&lt;/span&gt;
+  CVector4 &lt;span style=&quot;color:#676767&quot;&gt;&amp;amp;&lt;/span&gt;z&lt;span style=&quot;color:#676767&quot;&gt;,&lt;/span&gt; &lt;span style=&quot;color:#2e8b57; font-weight:bold&quot;&gt;const&lt;/span&gt; sFractal &lt;span style=&quot;color:#676767&quot;&gt;*&lt;/span&gt;fractal&lt;span style=&quot;color:#676767&quot;&gt;,&lt;/span&gt; sExtendedAux &lt;span style=&quot;color:#676767&quot;&gt;&amp;amp;&lt;/span&gt;aux&lt;span style=&quot;color:#676767&quot;&gt;)&lt;/span&gt;
 &lt;span style=&quot;color:#676767&quot;&gt;{&lt;/span&gt;
   CVector4 gap &lt;span style=&quot;color:#676767&quot;&gt;=&lt;/span&gt; fractal&lt;span style=&quot;color:#676767&quot;&gt;-&amp;gt;&lt;/span&gt;transformCommon&lt;span style=&quot;color:#676767&quot;&gt;.&lt;/span&gt;constantMultiplier000&lt;span style=&quot;color:#676767&quot;&gt;;&lt;/span&gt;
 
@@ -3268,14 +3269,14 @@
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>MyCheckBox</class>
-   <extends>QCheckBox</extends>
-   <header>my_check_box.h</header>
-  </customwidget>
-  <customwidget>
    <class>MyDoubleSpinBox</class>
    <extends>QDoubleSpinBox</extends>
    <header>my_double_spin_box.h</header>
+  </customwidget>
+  <customwidget>
+   <class>MyCheckBox</class>
+   <extends>QCheckBox</extends>
+   <header>my_check_box.h</header>
   </customwidget>
   <customwidget>
    <class>MySpinBox</class>

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -38,6 +38,7 @@
 #define MANDELBULBER2_SRC_MARCHINGCUBES_H_
 
 #include <cstddef>
+#include <memory>
 #include <vector>
 
 #include <QObject>
@@ -55,11 +56,12 @@ class MarchingCubes : public QObject
 	Q_OBJECT
 
 public:
-	MarchingCubes(const cParameterContainer *paramsContainer,
-		const cFractalContainer *fractalContainer, sParamRender *params, cNineFractals *fractals,
-		sRenderData *renderData, int numx, int numy, int numz, const CVector3 &lower,
-		const CVector3 &upper, double dist_thresh, bool *stop, std::vector<double> &vertices,
-		std::vector<long long> &polygons, std::vector<double> &colorIndices);
+	MarchingCubes(std::shared_ptr<const cParameterContainer> paramsContainer,
+		std::shared_ptr<const cFractalContainer> fractalContainer, std::shared_ptr<sParamRender> params,
+		std::shared_ptr<cNineFractals> fractals, std::shared_ptr<sRenderData> renderData, int numx,
+		int numy, int numz, const CVector3 &lower, const CVector3 &upper, double dist_thresh,
+		bool *stop, std::vector<double> &vertices, std::vector<long long> &polygons,
+		std::vector<double> &colorIndices);
 
 	~MarchingCubes() override { FreeBuffers(); }
 
@@ -74,17 +76,17 @@ private:
 #ifdef USE_OFFLOAD
 	__declspec(target(mic))
 #endif // USE_OFFLOAD
-		long long *shared_indices;
+		std::vector<long long> shared_indices;
 
 #ifdef USE_OFFLOAD
 	__declspec(target(mic))
 #endif // USE_OFFLOAD
-		double *voxelBuffer;
+		std::vector<double> voxelBuffer;
 
 #ifdef USE_OFFLOAD
 	__declspec(target(mic))
 #endif // USE_OFFLOAD
-		double *colorBuffer;
+		std::vector<double> colorBuffer;
 
 	int numx;
 	int numy;
@@ -99,12 +101,12 @@ private:
 	long long numyzb;
 	int z3;
 	int yz3;
-	sParamRender *params;
-	cNineFractals *fractals;
-	sRenderData *renderData;
+	std::shared_ptr<sParamRender> params;
+	std::shared_ptr<cNineFractals> fractals;
+	std::shared_ptr<sRenderData> renderData;
 	double dist_thresh;
-	const cParameterContainer *paramsContainer;
-	const cFractalContainer *fractalContainer;
+	std::shared_ptr<const cParameterContainer> paramsContainer;
+	std::shared_ptr<const cFractalContainer> fractalContainer;
 	bool coloredMesh;
 
 	bool *stop;
@@ -177,7 +179,7 @@ private:
 	}
 
 signals:
-	int updateProgressAndStatus(int i);
+	int signalUpdateProgressAndStatus(int i, quint64 polygosnCount);
 	void finished();
 };
 

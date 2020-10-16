@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -67,7 +67,8 @@ enum enumBooleanOperator
 struct sParamRender
 {
 	// constructor with init
-	sParamRender(const cParameterContainer *par, QVector<cObjectData> *objectData = nullptr);
+	sParamRender(
+		const std::shared_ptr<cParameterContainer> par, QVector<cObjectData> *objectData = nullptr);
 
 	int antialiasingSize;
 	int antialiasingOclDepth;
@@ -75,6 +76,8 @@ struct sParamRender
 	int auxLightNumber;
 	int auxLightRandomNumber;
 	int auxLightRandomSeed;
+	int cloudsIterations;
+	int cloudsRandomSeed;
 	int frameNo;
 	int imageHeight; // image height
 	int imageWidth;	// image width
@@ -95,6 +98,7 @@ struct sParamRender
 	fractal::enumDEFunctionType delta_DE_function;
 
 	bool advancedQuality;
+	bool allPrimitivesInvisibleAlpha;
 	bool antialiasingEnabled;
 	bool antialiasingAdaptive;
 	bool ambientOcclusionEnabled; // enable global illumination
@@ -103,6 +107,10 @@ struct sParamRender
 	bool auxLightRandomInOneColor;
 	bool background3ColorsEnable;
 	bool booleanOperatorsEnabled;
+	bool cloudsCastShadows;
+	bool cloudsDistanceMode;
+	bool cloudsEnable;
+	bool cloudsPlaneShape;
 	bool constantDEThreshold;
 	bool DOFEnabled;
 	bool DOFHDRMode;
@@ -143,6 +151,7 @@ struct sParamRender
 	sRGBFloat background_color1; // background colour
 	sRGBFloat background_color2;
 	sRGBFloat background_color3;
+	sRGBFloat cloudsColor;
 	sRGBFloat fakeLightsColor;
 	sRGBFloat fillLightColor;
 	sRGBFloat fogColor;
@@ -172,6 +181,17 @@ struct sParamRender
 	double backgroundTextureOffsetX;
 	double backgroundTextureOffsetY;
 	double cameraDistanceToTarget; // zoom
+	double cloudsAmbientLight;
+	double cloudsDEApproaching;
+	double cloudsDEMultiplier;
+	double cloudsDensity;
+	double cloudsDetailAccuracy;
+	double cloudsDistance;
+	double cloudsDistanceLayer;
+	double cloudsLightsBoost;
+	double cloudsPeriod;
+	double cloudsHeight;
+	double cloudsOpacity;
 	double constantFactor;
 	double DEFactor; // factor for distance estimation steps
 	double deltaDERelativeDelta;
@@ -203,9 +223,11 @@ struct sParamRender
 	float iterFogBrightnessBoost;
 	double mainLightAlpha;
 	double mainLightBeta;
+	double mainLightContourSharpness;
 	float mainLightIntensity;
 	double mainLightVisibility;
 	double mainLightVisibilitySize;
+	float monteCarloGIRadianceLimit;
 	double relMaxMarchingStep;
 	double relMinMarchingStep;
 	double resolution; // resolution of image in fractal coordinates
@@ -230,7 +252,8 @@ struct sParamRender
 	CVector3 auxLightPre[4];
 	CVector3 auxLightRandomCenter;
 	CVector3 backgroundRotation;
-
+	CVector3 cloudsCenter;
+	CVector3 cloudsRotation;
 	CVector3 formulaPosition[NUMBER_OF_FRACTALS];
 	CVector3 formulaRotation[NUMBER_OF_FRACTALS];
 	CVector3 formulaRepeat[NUMBER_OF_FRACTALS];
@@ -244,6 +267,7 @@ struct sParamRender
 
 	CRotationMatrix mRotFormulaRotation[NUMBER_OF_FRACTALS];
 	CRotationMatrix mRotBackgroundRotation;
+	CRotationMatrix mRotCloudsRotation;
 
 	cPrimitives primitives;
 

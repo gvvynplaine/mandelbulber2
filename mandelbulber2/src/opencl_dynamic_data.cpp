@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -33,6 +33,8 @@
  */
 
 #include "opencl_dynamic_data.hpp"
+
+#include <vector>
 
 #include "color_gradient.h"
 #include "lights.hpp"
@@ -106,12 +108,12 @@ int cOpenClDynamicData::BuildMaterialsData(
 	totalDataOffset += headerSize;
 
 	// reserve bytes for material offsets
-	cl_int *materialOffsets = new cl_int[numberOfMaterials];
+	std::vector<cl_int> materialOffsets(numberOfMaterials);
 	int materialOffsetsSize = sizeof(cl_int) * numberOfMaterials;
-	memset(materialOffsets, 0, materialOffsetsSize);
+	std::fill(materialOffsets.begin(), materialOffsets.end(), 0);
 
 	int materialOffsetsAddress = totalDataOffset;
-	data.append(reinterpret_cast<char *>(materialOffsets), materialOffsetsSize);
+	data.append(reinterpret_cast<char *>(materialOffsets.data()), materialOffsetsSize);
 	totalDataOffset += materialOffsetsSize;
 
 	// add dummy bytes for alignment to 16
@@ -120,7 +122,7 @@ int cOpenClDynamicData::BuildMaterialsData(
 	for (int materialIndex = 0; materialIndex < numberOfMaterials; materialIndex++)
 	{
 		sMaterialCl materialCl;
-		cl_float4 *paletteCl;
+		std::vector<cl_float4> paletteCl;
 
 		int totalSizeOfGradients = 0;
 		cl_int paletteOffsetSurface;
@@ -221,7 +223,7 @@ int cOpenClDynamicData::BuildMaterialsData(
 			paletteSizeTransparency = gradientTransparency.size();
 			totalSizeOfGradients += paletteSizeTransparency;
 
-			paletteCl = new cl_float4[totalSizeOfGradients];
+			paletteCl.resize(totalSizeOfGradients);
 
 			for (int i = 0; i < paletteSizeSurface; i++)
 			{
@@ -290,7 +292,7 @@ int cOpenClDynamicData::BuildMaterialsData(
 			paletteSizeReflectance = 2;
 			paletteOffsetTransparency = 12;
 			paletteSizeTransparency = 2;
-			paletteCl = new cl_float4[14];
+			paletteCl.resize(14);
 			for (int i = 0; i < 14; i++)
 			{
 				paletteCl[i] = toClFloat4(CVector4());
@@ -390,21 +392,17 @@ int cOpenClDynamicData::BuildMaterialsData(
 		// palette data
 		paletteItemsOffset = totalDataOffset;
 		int paletteSizeBytes = totalSizeOfGradients * sizeof(cl_float4);
-		data.append(reinterpret_cast<char *>(paletteCl), paletteSizeBytes);
+		data.append(reinterpret_cast<char *>(paletteCl.data()), paletteSizeBytes);
 		totalDataOffset += paletteSizeBytes;
 
 		// fill paletteItemsOffset value
 		data.replace(paletteItemsOffsetAddress, sizeof(paletteItemsOffset),
 			reinterpret_cast<char *>(&paletteItemsOffset), sizeof(paletteItemsOffset));
-
-		delete[] paletteCl;
 	}
 
 	// fill materials offsets:
 	data.replace(materialOffsetsAddress, materialOffsetsSize,
-		reinterpret_cast<char *>(materialOffsets), materialOffsetsSize);
-
-	delete[] materialOffsets;
+		reinterpret_cast<char *>(materialOffsets.data()), materialOffsetsSize);
 
 	return numberOfMaterials;
 }
@@ -493,7 +491,7 @@ void cOpenClDynamicData::BuildLightsData(const cLights *lights)
 		if (i == 0) arrayOffset = totalDataOffset;
 
 		sLightCl lightCl;
-		sLight *light = lights->GetLight(i);
+		const sLight *light = lights->GetLight(i);
 		lightCl.position = toClFloat3(light->position);
 		lightCl.colour = toClFloat3(light->colour);
 		lightCl.intensity = light->intensity;

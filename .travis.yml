@@ -7,7 +7,6 @@ language: cpp
 
 os:
   - linux
-  - osx
 
 env:
   matrix:
@@ -22,7 +21,7 @@ install:
       && sudo apt-get -qq update
       && sudo apt-get -qq install g++-6 libc6-i386
       && sudo apt-get install -y mesa-common-dev libgl1-mesa-dev
-      && sudo apt-get install -y qt57base qt57tools qt57multimedia
+      && sudo apt-get install -y qt57base qt57tools qt57multimedia qt57svg
       && sudo apt-get install -y libpng12-0 libpng12-dev libgsl0-dev libgsl0ldbl libgomp1 liblzo2-2 liblzo2-dev
       && sudo apt-get install -y libqt5svg5
       && sudo apt-get install -y libtiff5
@@ -91,18 +90,27 @@ script:
 
 # AppImage building and uploading
   - |
-    if [ "${TRAVIS_OS_NAME}" = "linux" ] && [ "${TRAVIS_EVENT_TYPE}" = "cron" ]; then
+    #if [ "${TRAVIS_OS_NAME}" = "linux" ] && [ "${TRAVIS_EVENT_TYPE}" = "cron" ]; then
+    if [ "${TRAVIS_OS_NAME}" = "linux" ]; then
+    
       cd ../../build
+      
       make INSTALL_ROOT=appdir -j$(nproc) install ; find appdir/
+      
       cp appdir/usr/share/icons/hicolor/256x256/apps/mandelbulber.png appdir/usr/share/icons/hicolor/256x256/apps/mandelbulber2.png || true # https://github.com/buddhi1980/mandelbulber2/issues/453#issuecomment-475412753
+      
       wget -c -nv "https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage"
       chmod a+x linuxdeployqt-continuous-x86_64.AppImage
+      
       unset QTDIR; unset QT_PLUGIN_PATH ; unset LD_LIBRARY_PATH
-      ./linuxdeployqt-continuous-x86_64.AppImage appdir/usr/share/applications/*.desktop -appimage
-      wget -c https://github.com/probonopd/uploadtool/raw/master/upload.sh
+      ./linuxdeployqt-continuous-x86_64.AppImage appdir/usr/share/applications/*.desktop -appimage -extra-plugins=iconengines,imageformats
+      
+      #export UPLOADTOOL_ISPRERELEASE=true
+      wget -c  https://github.com/damirporobic/uploadtool/raw/master/upload.sh
+      
+      export UPLOADTOOL_ISPRERELEASE=true
       bash upload.sh Mandelbulber*.AppImage*
     fi
-
 branches:
   except:
     - # Do not build tags that we create when we upload to GitHub Releases

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -36,6 +36,8 @@
 
 #include "frame_slider_popup.h"
 
+#include <QTimer>
+
 #include "ui_slider_popup.h"
 
 #include "src/system.hpp"
@@ -54,7 +56,7 @@ cFrameSliderPopup::cFrameSliderPopup(QWidget *parent)
 	connect(ui->buZero, SIGNAL(pressed()), this, SIGNAL(zeroPressed()));
 	connect(ui->buMinus, SIGNAL(pressed()), this, SIGNAL(minusPressed()));
 
-	sliderTimer = new QTimer();
+	sliderTimer = new QTimer(this);
 	sliderTimer->setSingleShot(true);
 	connect(sliderTimer, SIGNAL(timeout()), this, SLOT(slotSliderTimerTrigger()));
 	sliderTimer->start(100);
@@ -73,9 +75,8 @@ cFrameSliderPopup::cFrameSliderPopup(QWidget *parent)
 
 cFrameSliderPopup::~cFrameSliderPopup()
 {
-	delete ui;
 	sliderTimer->stop();
-	delete sliderTimer;
+	delete ui;
 }
 
 int cFrameSliderPopup::value() const

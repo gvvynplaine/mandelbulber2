@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -47,6 +47,8 @@
 #include "src/projection_3d.hpp"
 #include "src/render_window.hpp"
 #include "src/settings.hpp"
+#include "src/system_data.hpp"
+#include "src/system_directories.hpp"
 
 cDockImageAdjustments::cDockImageAdjustments(QWidget *parent)
 		: QWidget(parent), ui(new Ui::cDockImageAdjustments)
@@ -58,7 +60,7 @@ cDockImageAdjustments::cDockImageAdjustments(QWidget *parent)
 	automatedWidgets = new cAutomatedWidgets(this);
 	automatedWidgets->ConnectSignalsForSlidersInWindow(this);
 	ConnectSignals();
-	resolutionPresets = new cParameterContainer;
+	resolutionPresets.reset(new cParameterContainer);
 	InitResolutionPresets();
 
 	SetAntialiasingOpenCL(false);
@@ -67,7 +69,6 @@ cDockImageAdjustments::cDockImageAdjustments(QWidget *parent)
 cDockImageAdjustments::~cDockImageAdjustments()
 {
 	delete ui;
-	delete resolutionPresets;
 }
 
 void cDockImageAdjustments::slotDisableAutoRefresh()
@@ -219,8 +220,7 @@ void cDockImageAdjustments::slotChangedComboPerspectiveType(int index) const
 	}
 	else if (perspType == params::perspThreePoint)
 	{
-		if(gPar->Get<double>("fov") > 179.0)
-		ui->spinbox_fov->setValue(53.13);
+		if (gPar->Get<double>("fov") > 179.0) ui->spinbox_fov->setValue(53.13);
 	}
 }
 
@@ -351,7 +351,7 @@ void cDockImageAdjustments::InitResolutionPresets()
 	resolutionPresets->addParam("resolution_preset", 8, QString("800x600"), morphNone, paramApp);
 	resolutionPresets->addParam("resolution_preset", 9, QString("1600x1200"), morphNone, paramApp);
 
-	QString presetsFile = systemData.GetResolutionPresetsFile();
+	QString presetsFile = systemDirectories.GetResolutionPresetsFile();
 	if (QFileInfo::exists(presetsFile))
 	{
 		cSettings settings(cSettings::formatAppSettings);
@@ -394,24 +394,27 @@ void cDockImageAdjustments::slotChangeResolutionPreset()
 	QString oldPreset = resolutionPresets->Get<QString>("resolution_preset", index);
 	QString newPreset = QInputDialog::getText(this, tr("Edit resolution preset"),
 		tr("Type new preset in format WIDTHxHEIGHT"), QLineEdit::Normal, oldPreset);
+	if (!newPreset.isEmpty())
+	{
 
-	int xPosition = newPreset.indexOf('x');
-	int width = newPreset.left(xPosition).toInt();
-	int height = newPreset.mid(xPosition + 1).toInt();
-	width = max(32, width);
-	height = max(32, height);
-	QString newPresetCorrected = QString("%1x%2").arg(width).arg(height);
+		int xPosition = newPreset.indexOf('x');
+		int width = newPreset.left(xPosition).toInt();
+		int height = newPreset.mid(xPosition + 1).toInt();
+		width = std::max(32, width);
+		height = std::max(32, height);
+		QString newPresetCorrected = QString("%1x%2").arg(width).arg(height);
 
-	QToolButton *button = ui->groupBox_presets->findChild<QToolButton *>(
-		QString("toolButton_resolution_preset_%1").arg(index));
+		QToolButton *button = ui->groupBox_presets->findChild<QToolButton *>(
+			QString("toolButton_resolution_preset_%1").arg(index));
 
-	resolutionPresets->Set("resolution_preset", index, newPresetCorrected);
-	button->setText(newPresetCorrected);
+		resolutionPresets->Set("resolution_preset", index, newPresetCorrected);
+		button->setText(newPresetCorrected);
 
-	QString presetsFile = systemData.GetResolutionPresetsFile();
-	cSettings settings(cSettings::formatAppSettings);
-	settings.CreateText(resolutionPresets, nullptr);
-	settings.SaveToFile(presetsFile);
+		QString presetsFile = systemDirectories.GetResolutionPresetsFile();
+		cSettings settings(cSettings::formatAppSettings);
+		settings.CreateText(resolutionPresets, nullptr);
+		settings.SaveToFile(presetsFile);
+	}
 }
 
 void cDockImageAdjustments::slotOptimalDistancesBetweenEyes() const

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2015-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2015-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,8 +34,6 @@
 
 #include "render_queue.hpp"
 
-#include <QtCore>
-
 #include "animation_flight.hpp"
 #include "animation_frames.hpp"
 #include "animation_keyframes.hpp"
@@ -54,15 +52,17 @@
 #include "rendered_image_widget.hpp"
 #include "rendering_configuration.hpp"
 #include "settings.hpp"
+#include "system_data.hpp"
+#include "write_log.hpp"
 
-cRenderQueue::cRenderQueue(cImage *_image, RenderedImage *widget) : QObject()
+cRenderQueue::cRenderQueue(std::shared_ptr<cImage> _image, RenderedImage *widget) : QObject()
 {
 	image = _image;
 	imageWidget = widget;
-	queuePar = new cParameterContainer;
-	queueParFractal = new cFractalContainer;
-	queueAnimFrames = new cAnimationFrames;
-	queueKeyframes = new cKeyframes;
+	queuePar.reset(new cParameterContainer());
+	queueParFractal.reset(new cFractalContainer());
+	queueAnimFrames.reset(new cAnimationFrames());
+	queueKeyframes.reset(new cKeyframes);
 
 	queuePar->SetContainerName("main");
 	InitParams(queuePar);
@@ -73,46 +73,41 @@ cRenderQueue::cRenderQueue(cImage *_image, RenderedImage *widget) : QObject()
 	/*******************************************************************/
 	for (int i = 0; i < NUMBER_OF_FRACTALS; i++)
 	{
-		queueParFractal->at(i).SetContainerName(QString("fractal") + QString::number(i));
-		InitFractalParams(&queueParFractal->at(i));
+		queueParFractal->at(i)->SetContainerName(QString("fractal") + QString::number(i));
+		InitFractalParams(queueParFractal->at(i));
 	}
 
-	queueFlightAnimation = new cFlightAnimation(
-		gMainInterface, queueAnimFrames, image, imageWidget, queuePar, queueParFractal, this);
-	queueKeyframeAnimation = new cKeyframeAnimation(
-		gMainInterface, queueKeyframes, image, imageWidget, queuePar, queueParFractal, this);
-	QObject::connect(queueFlightAnimation,
+	queueFlightAnimation.reset(new cFlightAnimation(
+		gMainInterface, queueAnimFrames, image, imageWidget, queuePar, queueParFractal, this));
+	queueKeyframeAnimation.reset(new cKeyframeAnimation(
+		gMainInterface, queueKeyframes, image, imageWidget, queuePar, queueParFractal, this));
+	QObject::connect(queueFlightAnimation.get(),
 		SIGNAL(updateProgressAndStatus(
 			const QString &, const QString &, double, cProgressText::enumProgressType)),
 		this,
 		SIGNAL(updateProgressAndStatus(
 			const QString &, const QString &, double, cProgressText::enumProgressType)));
-	QObject::connect(queueFlightAnimation,
+	QObject::connect(queueFlightAnimation.get(),
 		SIGNAL(updateProgressHide(cProgressText::enumProgressType)), this,
 		SIGNAL(updateProgressHide(cProgressText::enumProgressType)));
-	QObject::connect(queueFlightAnimation, SIGNAL(updateStatistics(cStatistics)), this,
+	QObject::connect(queueFlightAnimation.get(), SIGNAL(updateStatistics(cStatistics)), this,
 		SIGNAL(updateStatistics(cStatistics)));
-	QObject::connect(queueKeyframeAnimation,
+	QObject::connect(queueKeyframeAnimation.get(),
 		SIGNAL(updateProgressAndStatus(
 			const QString &, const QString &, double, cProgressText::enumProgressType)),
 		this,
 		SIGNAL(updateProgressAndStatus(
 			const QString &, const QString &, double, cProgressText::enumProgressType)));
-	QObject::connect(queueKeyframeAnimation,
+	QObject::connect(queueKeyframeAnimation.get(),
 		SIGNAL(updateProgressHide(cProgressText::enumProgressType)), this,
 		SIGNAL(updateProgressHide(cProgressText::enumProgressType)));
-	QObject::connect(queueKeyframeAnimation, SIGNAL(updateStatistics(cStatistics)), this,
+	QObject::connect(queueKeyframeAnimation.get(), SIGNAL(updateStatistics(cStatistics)), this,
 		SIGNAL(updateStatistics(cStatistics)));
 }
 
 cRenderQueue::~cRenderQueue()
 {
-	delete queueAnimFrames;
-	delete queueKeyframes;
-	delete queueFlightAnimation;
-	delete queueKeyframeAnimation;
-	delete queueParFractal;
-	delete queuePar;
+	// nothing to delete
 }
 
 void cRenderQueue::slotRenderQueue()
@@ -226,14 +221,15 @@ bool cRenderQueue::RenderStill(const cQueue::structQueueItem &queueItem)
 	QString saveFilename = QFileInfo(queueItem.filename).baseName() + "." + extension;
 
 	// setup of rendering engine
-	cRenderJob *renderJob =
-		new cRenderJob(queuePar, queueParFractal, image, &gQueue->stopRequest, imageWidget);
+	std::unique_ptr<cRenderJob> renderJob(
+		new cRenderJob(queuePar, queueParFractal, image, &gQueue->stopRequest, imageWidget));
 
-	connect(renderJob, SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)),
-		this, SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)));
-	connect(
-		renderJob, SIGNAL(updateStatistics(cStatistics)), this, SIGNAL(updateStatistics(cStatistics)));
-	connect(renderJob, SIGNAL(updateImage()), this, SIGNAL(updateImage()));
+	connect(renderJob.get(),
+		SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)), this,
+		SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)));
+	connect(renderJob.get(), SIGNAL(updateStatistics(cStatistics)), this,
+		SIGNAL(updateStatistics(cStatistics)));
+	connect(renderJob.get(), SIGNAL(updateImage()), this, SIGNAL(updateImage()));
 
 	cRenderingConfiguration config;
 	if (systemData.noGui)
@@ -250,7 +246,6 @@ bool cRenderQueue::RenderStill(const cQueue::structQueueItem &queueItem)
 	bool result = renderJob->Execute();
 	if (!result)
 	{
-		delete renderJob;
 		return false;
 	}
 
@@ -264,6 +259,5 @@ bool cRenderQueue::RenderStill(const cQueue::structQueueItem &queueItem)
 	parSettings.CreateText(queuePar, queueParFractal);
 	parSettings.SaveToFile(fullSaveFilename);
 
-	delete renderJob;
 	return true;
 }

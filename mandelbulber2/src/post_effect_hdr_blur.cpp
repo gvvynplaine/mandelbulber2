@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,30 +34,27 @@
 
 #include "post_effect_hdr_blur.h"
 
-#include <QtCore>
-
 #include "cimage.hpp"
 #include "global_data.hpp"
 #include "progress_text.hpp"
-#include "system.hpp"
+#include "system_data.hpp"
 
-cPostEffectHdrBlur::cPostEffectHdrBlur(cImage *_image) : QObject(), image(_image)
+cPostEffectHdrBlur::cPostEffectHdrBlur(std::shared_ptr<cImage> _image) : QObject(), image(_image)
 {
-	tempImage = new sRGBFloat[image->GetHeight() * image->GetWidth()];
+	tempImage.resize(image->GetHeight() * image->GetWidth());
 	radius = 0;
 	intensity = 0;
 }
 
 cPostEffectHdrBlur::~cPostEffectHdrBlur()
 {
-	delete[] tempImage;
+	// nothing to delete
 }
 
 void cPostEffectHdrBlur::Render(bool *stopRequest)
 {
 
-	memcpy(tempImage, image->GetPostImageFloatPtr(),
-		image->GetHeight() * image->GetWidth() * sizeof(sRGBFloat));
+	tempImage = image->GetPostImageFloat();
 
 	const double blurSize = radius * (image->GetWidth() + image->GetHeight()) * 0.001;
 	const double blurSize2 = blurSize * blurSize;

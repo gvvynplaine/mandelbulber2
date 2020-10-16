@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2019 Mandelbulber Team        §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2019-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -38,10 +38,11 @@
 #include "error_message.hpp"
 #include "files.h"
 #include "fractal_container.hpp"
-#include "fractal_list.hpp"
 #include "fractparams.hpp"
 #include "initparameters.hpp"
 #include "system.hpp"
+
+#include "formula/definition/all_fractal_list.hpp"
 
 cMandelbulb3dSettings::cMandelbulb3dSettings() = default;
 
@@ -105,7 +106,7 @@ bool cMandelbulb3dSettings::LoadSettings(const QString &filename)
 }
 
 void cMandelbulb3dSettings::ConvertToNewContainer(
-	cParameterContainer *par, cFractalContainer *fractal)
+	std::shared_ptr<cParameterContainer> par, std::shared_ptr<cFractalContainer> fractal)
 {
 	// general parameters
 	par->ResetAllToDefault();

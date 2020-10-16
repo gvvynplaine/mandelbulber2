@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2015-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2015-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -48,25 +48,13 @@
 
 cNineFractals::~cNineFractals()
 {
-	if (fractals)
-	{
-		for (int i = 0; i < NUMBER_OF_FRACTALS; i++)
-		{
-			if (fractals[i])
-			{
-				delete fractals[i];
-			}
-		}
-		delete[] fractals;
-	}
-	if (hybridSequence) delete[] hybridSequence;
-	hybridSequence = nullptr;
+	// nothing to delete
 }
 
-cNineFractals::cNineFractals(const cFractalContainer *par, const cParameterContainer *generalPar)
+cNineFractals::cNineFractals(std::shared_ptr<const cFractalContainer> par,
+	std::shared_ptr<const cParameterContainer> generalPar)
 {
-	fractals = new sFractal *[NUMBER_OF_FRACTALS];
-	hybridSequence = nullptr;
+	fractals.resize(NUMBER_OF_FRACTALS);
 	bool useDefaultBailout = generalPar->Get<bool>("use_default_bailout");
 	double commonBailout = generalPar->Get<double>("bailout");
 	isHybrid = generalPar->Get<bool>("hybrid_fractal_enable");
@@ -77,7 +65,7 @@ cNineFractals::cNineFractals(const cFractalContainer *par, const cParameterConta
 	for (int i = 0; i < NUMBER_OF_FRACTALS; i++)
 	{
 		// allocating memory for formula data
-		fractals[i] = new sFractal(&par->at(i));
+		fractals[i].reset(new sFractal(par->at(i)));
 
 		// getting selected formula
 		fractals[i]->formula = fractal::enumFractalFormula(generalPar->Get<int>("formula", i + 1));
@@ -95,11 +83,11 @@ cNineFractals::cNineFractals(const cFractalContainer *par, const cParameterConta
 		DEType[i] = fractal::deltaDEType;
 		DEFunctionType[i] = fractal::logarithmicDEFunction;
 
-		fractalFormulaFunctions[i] =
-			fractalList[GetIndexOnFractalList(fractals[i]->formula)].fractalFormulaFunction;
+		fractalFormulaFunctions[i] = newFractalList[GetIndexOnFractalList(fractals[i]->formula)];
 		DEAnalyticFunction[i] =
-			fractalList[GetIndexOnFractalList(fractals[i]->formula)].DEAnalyticFunction;
-		coloringFunction[i] = fractalList[GetIndexOnFractalList(fractals[i]->formula)].coloringFunction;
+			newFractalList[GetIndexOnFractalList(fractals[i]->formula)]->getDeAnalyticFunction();
+		coloringFunction[i] =
+			newFractalList[GetIndexOnFractalList(fractals[i]->formula)]->getColoringFunction();
 
 		// decide if use check for bailout
 		if (isBoolean || (!isBoolean && !isHybrid))
@@ -109,7 +97,7 @@ cNineFractals::cNineFractals(const cFractalContainer *par, const cParameterConta
 
 		// decide if use addition of C constant
 		bool addc;
-		if (fractalList[GetIndexOnFractalList(fractals[i]->formula)].cpixelAddition
+		if (newFractalList[GetIndexOnFractalList(fractals[i]->formula)]->getCpixelAddition()
 				== fractal::cpixelAlreadyHas)
 		{
 			addc = false;
@@ -117,7 +105,7 @@ cNineFractals::cNineFractals(const cFractalContainer *par, const cParameterConta
 		else
 		{
 			addc = !generalPar->Get<bool>("dont_add_c_constant", i + 1);
-			if (fractalList[GetIndexOnFractalList(fractals[i]->formula)].cpixelAddition
+			if (newFractalList[GetIndexOnFractalList(fractals[i]->formula)]->getCpixelAddition()
 					== fractal::cpixelDisabledByDefault)
 				addc = !addc;
 		}
@@ -127,10 +115,11 @@ cNineFractals::cNineFractals(const cFractalContainer *par, const cParameterConta
 		if (useDefaultBailout)
 		{
 			if (isHybrid)
-				maxBailout =
-					qMax(maxBailout, fractalList[GetIndexOnFractalList(fractals[i]->formula)].defaultBailout);
+				maxBailout = qMax(maxBailout,
+					newFractalList[GetIndexOnFractalList(fractals[i]->formula)]->getDefaultBailout());
 			else
-				bailout[i] = fractalList[GetIndexOnFractalList(fractals[i]->formula)].defaultBailout;
+				bailout[i] =
+					newFractalList[GetIndexOnFractalList(fractals[i]->formula)]->getDefaultBailout();
 		}
 		else
 		{
@@ -156,9 +145,9 @@ cNineFractals::cNineFractals(const cFractalContainer *par, const cParameterConta
 		useAdditionalBailoutCond[i] = false;
 		if (isBoolean)
 		{
-			if (fractalList[GetIndexOnFractalList(fractals[i]->formula)].DEFunctionType
+			if (newFractalList[GetIndexOnFractalList(fractals[i]->formula)]->getDeFunctionType()
 						== fractal::pseudoKleinianDEFunction
-					|| fractalList[GetIndexOnFractalList(fractals[i]->formula)].DEFunctionType
+					|| newFractalList[GetIndexOnFractalList(fractals[i]->formula)]->getDeFunctionType()
 							 == fractal::josKleinianDEFunction)
 			{
 				useAdditionalBailoutCond[i] = true;
@@ -211,21 +200,21 @@ cNineFractals::cNineFractals(const cFractalContainer *par, const cParameterConta
 				// looking for the best DE function for DeltaDE mode
 
 				// count usage of DE functions
-				fractal::enumDEFunctionType DEFunction = fractalList[index].DEFunctionType;
+				fractal::enumDEFunctionType DEFunction = newFractalList[index]->getDeFunctionType();
 				if (DEFunction != fractal::withoutDEFunction)
 				{
 					DEFunctionCount[DEFunction] += counts[f];
 				}
 
 				// looking if it's possible to use analyticDEType
-				if (!forceDeltaDE && fractalList[index].internalID != fractal::none)
+				if (!forceDeltaDE && newFractalList[index]->getInternalId() != fractal::none)
 				{
 					if (optimizedDEType == fractal::withoutDEFunction)
 					{
 						optimizedDEType = DEFunction;
 					}
 
-					if (!forceAnalyticDE && fractalList[index].DEType == fractal::deltaDEType)
+					if (!forceAnalyticDE && newFractalList[index]->getDeType() == fractal::deltaDEType)
 					{
 						DEType[0] = fractal::deltaDEType;
 						useOptimizedDE = false;
@@ -235,9 +224,9 @@ cNineFractals::cNineFractals(const cFractalContainer *par, const cParameterConta
 			}
 
 			// checking if used dIFS formula
-			if (DEFunctionCount[fractal::dIFSDEFunction] > 0)
+			if (DEFunctionCount[fractal::customDEFunction] > 0)
 			{
-				DEFunctionType[0] = fractal::dIFSDEFunction;
+				DEFunctionType[0] = fractal::customDEFunction;
 			}
 			else // use method which used in the highest iteration count
 			{
@@ -258,7 +247,7 @@ cNineFractals::cNineFractals(const cFractalContainer *par, const cParameterConta
 			{
 				fractal::enumFractalFormula formula = fractals[f]->formula;
 				int index = GetIndexOnFractalList(formula);
-				if (!forceAnalyticDE && fractalList[index].DEType == fractal::deltaDEType)
+				if (!forceAnalyticDE && newFractalList[index]->getDeType() == fractal::deltaDEType)
 				{
 					DEType[0] = fractal::deltaDEType;
 				}
@@ -276,9 +265,9 @@ cNineFractals::cNineFractals(const cFractalContainer *par, const cParameterConta
 			fractal::enumFractalFormula formula = fractals[f]->formula;
 			int index = GetIndexOnFractalList(formula);
 
-			DEType[f] = fractalList[index].DEType;
-			DEFunctionType[f] = fractalList[index].DEFunctionType;
-			DEAnalyticFunction[f] = fractalList[index].DEAnalyticFunction;
+			DEType[f] = newFractalList[index]->getDeType();
+			DEFunctionType[f] = newFractalList[index]->getDeFunctionType();
+			DEAnalyticFunction[f] = newFractalList[index]->getDeAnalyticFunction();
 
 			if (forceDeltaDE) DEType[f] = fractal::deltaDEType;
 			if (forceAnalyticDE) DEType[f] = fractal::analyticDEType;
@@ -302,8 +291,11 @@ cNineFractals::cNineFractals(const cFractalContainer *par, const cParameterConta
 					case fractal::josKleinianDEFunction:
 						DEAnalyticFunction[f] = fractal::analyticFunctionJosKleinian;
 						break;
-					case fractal::dIFSDEFunction:
-						DEAnalyticFunction[f] = fractal::analyticFunctionDIFS;
+					case fractal::customDEFunction:
+						DEAnalyticFunction[f] = fractal::analyticFunctionCustomDE;
+						break;
+					case fractal::maxAxisDEFunction:
+						DEAnalyticFunction[f] = fractal::analyticFunctionMaxAxis;
 						break;
 					default: DEAnalyticFunction[f] = fractal::analyticFunctionLinear; break;
 				}
@@ -314,9 +306,9 @@ cNineFractals::cNineFractals(const cFractalContainer *par, const cParameterConta
 	if (isHybrid)
 		for (int f = 0; f < NUMBER_OF_FRACTALS; f++)
 		{
-			if (fractalList[GetIndexOnFractalList(fractals[f]->formula)].DEFunctionType
+			if (newFractalList[GetIndexOnFractalList(fractals[f]->formula)]->getDeFunctionType()
 						== fractal::pseudoKleinianDEFunction
-					|| fractalList[GetIndexOnFractalList(fractals[f]->formula)].DEFunctionType
+					|| newFractalList[GetIndexOnFractalList(fractals[f]->formula)]->getDeFunctionType()
 							 == fractal::josKleinianDEFunction)
 			{
 				useAdditionalBailoutCond[f] = true;
@@ -324,9 +316,9 @@ cNineFractals::cNineFractals(const cFractalContainer *par, const cParameterConta
 		}
 	else if (!isBoolean)
 	{
-		if (fractalList[GetIndexOnFractalList(fractals[0]->formula)].DEFunctionType
+		if (newFractalList[GetIndexOnFractalList(fractals[0]->formula)]->getDeFunctionType()
 					== fractal::pseudoKleinianDEFunction
-				|| fractalList[GetIndexOnFractalList(fractals[0]->formula)].DEFunctionType
+				|| newFractalList[GetIndexOnFractalList(fractals[0]->formula)]->getDeFunctionType()
 						 == fractal::josKleinianDEFunction)
 		{
 			useAdditionalBailoutCond[0] = true;
@@ -334,12 +326,10 @@ cNineFractals::cNineFractals(const cFractalContainer *par, const cParameterConta
 	}
 }
 
-void cNineFractals::CreateSequence(const cParameterContainer *generalPar)
+void cNineFractals::CreateSequence(std::shared_ptr<const cParameterContainer> generalPar)
 {
-	if (hybridSequence) delete[] hybridSequence;
-	hybridSequence = nullptr;
 	hybridSequenceLength = maxN * 5;
-	hybridSequence = new int[hybridSequenceLength];
+	hybridSequence.resize(hybridSequenceLength);
 	int repeatFrom = generalPar->Get<int>("repeat_from");
 
 	int fractalNo = 0;
@@ -447,7 +437,8 @@ QString cNineFractals::GetDETypeString() const
 			case fractal::linearDEFunction: text += " linear"; break;
 			case fractal::pseudoKleinianDEFunction: text += " pseudo kleinian"; break;
 			case fractal::josKleinianDEFunction: text += " jos kleinian"; break;
-			case fractal::dIFSDEFunction: text += " dIFS"; break;
+			case fractal::customDEFunction: text += " custom"; break;
+			case fractal::maxAxisDEFunction: text += " maxAxis"; break;
 			// case fractal::testingDEFunction: text += " testing DE"; break;
 			default: text += "unknown"; break;
 		}
@@ -458,9 +449,9 @@ QString cNineFractals::GetDETypeString() const
 
 int cNineFractals::GetIndexOnFractalList(fractal::enumFractalFormula formula)
 {
-	for (int i = 0; i < fractalList.size(); i++)
+	for (int i = 0; i < newFractalList.size(); i++)
 	{
-		if (fractalList[i].internalID == formula)
+		if (newFractalList[i]->getInternalId() == formula)
 		{
 			return i;
 		}

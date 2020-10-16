@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2015-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2015-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -36,11 +36,13 @@
 #ifndef MANDELBULBER2_SRC_NINE_FRACTALS_HPP_
 #define MANDELBULBER2_SRC_NINE_FRACTALS_HPP_
 
-#include <QtCore>
+#include <memory>
+#include <vector>
 
 #include "algebra.hpp"
 #include "fractal_enums.h"
-#include "fractal_list.hpp"
+
+#include "formula/definition/all_fractal_list.hpp"
 
 // custom includes
 #ifdef USE_OPENCL
@@ -51,14 +53,15 @@
 class cParameterContainer;
 class cFractalContainer;
 struct sFractal;
+class cAbstractFractal;
 
 class cNineFractals
 {
 public:
-	cNineFractals(const cFractalContainer *fractalPar, const cParameterContainer *generalPar);
+	cNineFractals(std::shared_ptr<const cFractalContainer> fractalPar,
+		std::shared_ptr<const cParameterContainer> generalPar);
 	~cNineFractals();
-	sFractal *GetFractal(int index) const { return fractals[index]; }
-	sFractal **fractals;
+	sFractal *GetFractal(int index) const { return fractals[index].get(); }
 	int GetSequence(const int i) const;
 	bool IsHybrid() const { return isHybrid; }
 	fractal::enumDEType GetDEType(int formulaIndex) const;
@@ -81,7 +84,7 @@ public:
 	{
 		return useAdditionalBailoutCond[formulaIndex];
 	};
-	inline fractalFormulaFcn GetFractalFormulaFunction(int formulaIndex) const
+	inline cAbstractFractal *GetFractalFormulaFunction(int formulaIndex) const
 	{
 		return fractalFormulaFunctions[formulaIndex];
 	}
@@ -101,6 +104,7 @@ public:
 #endif
 
 private:
+	std::vector<std::unique_ptr<sFractal>> fractals;
 	bool forceDeltaDE;
 	bool forceAnalyticDE;
 	bool isHybrid;
@@ -109,7 +113,7 @@ private:
 	bool useOptimizedDE;
 	int maxFractalIndex;
 	int maxN;
-	int *hybridSequence;
+	std::vector<int> hybridSequence;
 	int hybridSequenceLength;
 
 	double formulaWeight[NUMBER_OF_FRACTALS];
@@ -128,9 +132,9 @@ private:
 	CVector3 constantMultiplier[NUMBER_OF_FRACTALS];
 	double initialWAxis[NUMBER_OF_FRACTALS];
 	bool useAdditionalBailoutCond[NUMBER_OF_FRACTALS];
-	fractalFormulaFcn fractalFormulaFunctions[NUMBER_OF_FRACTALS];
+	cAbstractFractal *fractalFormulaFunctions[NUMBER_OF_FRACTALS];
 
-	void CreateSequence(const cParameterContainer *generalPar);
+	void CreateSequence(std::shared_ptr<const cParameterContainer> generalPar);
 };
 
 #endif /* MANDELBULBER2_SRC_NINE_FRACTALS_HPP_ */

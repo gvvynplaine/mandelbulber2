@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -69,6 +69,7 @@ float4 VolumetricShader(__constant sClInConstants *consts, sRenderData *renderDa
 #else // not SIMPLE_GLOW
 	float totalStep = 0.0f;
 	float scan = CalcDistThresh(input->point, consts);
+	float lastCloudDistance = consts->params.cloudsPeriod;
 
 	sShaderInputDataCl input2 = *input;
 
@@ -87,8 +88,8 @@ float4 VolumetricShader(__constant sClInConstants *consts, sRenderData *renderDa
 		outF = CalculateDistance(consts, point, calcParam, renderData);
 		float distance = outF.distance;
 
-		float step = (distance - 0.5f * input2.distThresh) * consts->params.DEFactor
-								 * consts->params.volumetricLightDEFactor;
+		float step = (min(distance, lastCloudDistance) - 0.5f * input2.distThresh)
+								 * consts->params.DEFactor * consts->params.volumetricLightDEFactor;
 
 		step *= (1.0f - Random(1000, &input->randomSeed) / 10000.0f);
 
@@ -123,68 +124,6 @@ float4 VolumetricShader(__constant sClInConstants *consts, sRenderData *renderDa
 			}
 		}
 #endif // GLOW
-
-#ifdef VISIBLE_AUX_LIGHTS
-		//------------------ visible light
-		{
-
-			for (int i = 0; i < numberOfLights; ++i)
-			{
-				__global sLightCl *light = &renderData->lights[i];
-				if (light->enabled && light->intensity > 0.0f)
-				{
-					float lastMiniSteps = -1.0f;
-					float miniStep = 0.0f;
-
-					for (float miniSteps = 0.0f; miniSteps < step; miniSteps += miniStep)
-					{
-						float3 lightDistVect = point - input->viewVector * miniSteps - light->position;
-						float lightDist = fast_length(lightDistVect);
-						float lightSize = native_sqrt(light->intensity) * consts->params.auxLightVisibilitySize;
-
-						float distToLightSurface = lightDist - lightSize;
-						distToLightSurface = max(distToLightSurface, 0.0f);
-
-						miniStep = 0.1f * (distToLightSurface + 0.1f * distToLightSurface);
-						miniStep = clamp(miniStep, step * 0.01f, step - miniSteps);
-						miniStep = max(miniStep, 1e-6f);
-
-						float r2 = native_divide(lightDist, lightSize);
-						float bellFunction = native_divide(1.0f, (1.0f + native_powr(r2, 4.0f)));
-						float lightDensity =
-							native_divide(miniStep * bellFunction * consts->params.auxLightVisibility, lightSize);
-
-						output += lightDensity * light->colour;
-						out4.s3 += lightDensity;
-
-						if (miniSteps == lastMiniSteps)
-						{
-							// Dead computation
-							break;
-						}
-						lastMiniSteps = miniSteps;
-					}
-				}
-			}
-		}
-#endif
-
-#ifdef FAKE_LIGHTS
-		// fake lights (orbit trap)
-		{
-			formulaOut outF;
-			outF = Fractal(consts, input2.point, calcParam, calcModeOrbitTrap, NULL, -1);
-			float r = outF.orbitTrapR;
-			r = sqrt(1.0f / (r + 1.0e-20f));
-			float fakeLight = 1.0f
-												/ (pow(r, 10.0f / consts->params.fakeLightsVisibilitySize)
-															* pow(10.0f, 10.0f / consts->params.fakeLightsVisibilitySize)
-														+ 0.1f);
-			float3 light = fakeLight * step * consts->params.fakeLightsVisibility;
-			output += light * consts->params.fakeLightsColor;
-			out4.s3 += fakeLight * step * consts->params.fakeLightsVisibility;
-		}
-#endif // FAKE_LIGHTS
 
 #ifdef VOLUMETRIC_LIGHTS
 		for (int i = 0; i < 5; i++)
@@ -265,6 +204,73 @@ float4 VolumetricShader(__constant sClInConstants *consts, sRenderData *renderDa
 			out4.s3 = fogDensity + (1.0f - fogDensity) * out4.s3;
 		}
 #endif // VOLUMETRIC_FOG
+
+		//--------- clouds --------
+#ifdef CLOUDS
+		float cloudsOpacity = 0.0f;
+
+		{
+			// perlin noise clouds
+			float distanceToClouds = 0.0f;
+			float cloud = CloudOpacity(
+				consts, renderData->perlinNoiseSeeds, point, distance, input2.delta, &distanceToClouds);
+
+			float opacity = cloud * step;
+
+			lastCloudDistance = distanceToClouds;
+
+			float3 newColour = 0.0f;
+			float3 shadowOutputTemp = 1.0f;
+
+			float3 ambient = consts->params.cloudsAmbientLight;
+			float3 nAmbient = 1.0f - consts->params.cloudsAmbientLight;
+
+			if (opacity > 0.0f)
+			{
+				if (consts->params.mainLightEnable && consts->params.mainLightIntensity > 0.0f)
+				{
+					if (consts->params.cloudsCastShadows)
+					{
+						shadowOutputTemp = MainShadow(consts, renderData, &input2, calcParam);
+					}
+					newColour += (shadowOutputTemp * nAmbient + ambient) * consts->params.mainLightColour
+											 * consts->params.mainLightIntensity;
+				}
+
+#ifdef AUX_LIGHTS
+				for (int l = 1; l < 5; l++)
+				{
+					__global sLightCl *light = &renderData->lights[l - 1];
+					if (light->enabled)
+					{
+						float3 lightVectorTemp = light->position - point;
+						float distanceLight = length(lightVectorTemp);
+						float distanceLight2 = distanceLight * distanceLight;
+						lightVectorTemp = normalize(lightVectorTemp);
+						float lightShadow = 1.0f;
+						if (consts->params.cloudsCastShadows)
+						{
+							calcParam->distThresh = input2.distThresh;
+							calcParam->detailSize = input2.distThresh;
+							lightShadow = AuxShadow(consts, renderData, &input2, distanceLight, lightVectorTemp,
+								calcParam, light->intensity);
+							lightShadow = lightShadow * nAmbient.s0 + ambient.s0;
+						}
+						float intensity = light->intensity;
+						newColour += lightShadow * light->colour / distanceLight2 * intensity;
+					}
+				}
+#endif // AUX_LIGTS
+
+				if (opacity > 1.0f) opacity = 1.0f;
+
+				output = output * (1.0f - opacity) + newColour * opacity * consts->params.cloudsColor;
+				totalOpacity = opacity + (1.0f - opacity) * totalOpacity;
+				out4.s3 = opacity + (1.0f - opacity) * out4.s3;
+			}
+			cloudsOpacity = cloud;
+		}
+#endif // CLOUDS
 
 // ---------- iter fog
 #ifdef ITER_FOG
@@ -355,6 +361,76 @@ float4 VolumetricShader(__constant sClInConstants *consts, sRenderData *renderDa
 			}
 		}
 #endif // ITER FOG
+
+#ifdef VISIBLE_AUX_LIGHTS
+		//------------------ visible light
+		{
+
+			for (int i = 0; i < numberOfLights; ++i)
+			{
+				__global sLightCl *light = &renderData->lights[i];
+				if (light->enabled && light->intensity > 0.0f)
+				{
+					float lastMiniSteps = -1.0f;
+					float miniStep = 0.0f;
+
+					for (float miniSteps = 0.0f; miniSteps < step; miniSteps += miniStep)
+					{
+						float3 lightDistVect = point - input->viewVector * miniSteps - light->position;
+						float lightDist = fast_length(lightDistVect);
+						float lightSize = native_sqrt(light->intensity) * consts->params.auxLightVisibilitySize;
+
+						float distToLightSurface = lightDist - lightSize;
+						distToLightSurface = max(distToLightSurface, 0.0f);
+
+						miniStep = 0.1f * (distToLightSurface + 0.1f * distToLightSurface);
+						miniStep = clamp(miniStep, step * 0.01f, step - miniSteps);
+						miniStep = max(miniStep, 1e-6f);
+
+						float r2 = native_divide(lightDist, lightSize);
+						float bellFunction = native_divide(1.0f, (1.0f + native_powr(r2, 4.0f)));
+						float lightDensity =
+							native_divide(miniStep * bellFunction * consts->params.auxLightVisibility, lightSize);
+
+#ifdef CLOUDS
+						lightDensity *= 1.0f + consts->params.cloudsLightsBoost * cloudsOpacity;
+#endif
+
+						output += lightDensity * light->colour;
+						out4.s3 += lightDensity;
+
+						if (miniSteps == lastMiniSteps)
+						{
+							// Dead computation
+							break;
+						}
+						lastMiniSteps = miniSteps;
+					}
+				}
+			}
+		}
+#endif
+
+#ifdef FAKE_LIGHTS
+		// fake lights (orbit trap)
+		{
+			formulaOut outF;
+			outF = Fractal(consts, input2.point, calcParam, calcModeOrbitTrap, NULL, -1);
+			float r = outF.orbitTrapR;
+			r = sqrt(1.0f / (r + 1.0e-20f));
+			float fakeLight = 1.0f
+												/ (pow(r, 10.0f / consts->params.fakeLightsVisibilitySize)
+															* pow(10.0f, 10.0f / consts->params.fakeLightsVisibilitySize)
+														+ 0.1f);
+			float3 light = fakeLight * step * consts->params.fakeLightsVisibility;
+#ifdef CLOUDS
+			light *= 1.0f + consts->params.cloudsLightsBoost * cloudsOpacity;
+#endif
+
+			output += light * consts->params.fakeLightsColor;
+			out4.s3 += fakeLight * step * consts->params.fakeLightsVisibility;
+		}
+#endif // FAKE_LIGHTS
 
 		if (totalOpacity > 1.0f) totalOpacity = 1.0f;
 		if (out4.s3 > 1.0f) out4.s3 = 1.0f; // alpha channel

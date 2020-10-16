@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -53,6 +53,7 @@ MyGroupBox::MyGroupBox(QWidget *parent) : QGroupBox(parent), CommonMyWidgetWrapp
 	actionResetAllToDefault = nullptr;
 	actionLoadToThisGroupbox = nullptr;
 	actionSaveFromThisGroupbox = nullptr;
+	actionRandomize = nullptr;
 	connect(this, SIGNAL(toggled(bool)), this, SLOT(slotToggled(bool)));
 }
 
@@ -123,10 +124,11 @@ void MyGroupBox::slotToggled(bool on) const
 
 void MyGroupBox::contextMenuEvent(QContextMenuEvent *event)
 {
-	QMenu *menu = new QMenu;
+	QMenu *menu = new QMenu; // deleted by contextMenuEvent()
 	QIcon iconReset = QIcon(":system/icons/edit-undo.png");
 	QIcon iconLoad = QIcon(":system/icons/document-open.svg");
 	QIcon iconSave = QIcon(":system/icons/document-save.svg");
+	QIcon iconRandomize = QIcon(":gradient/icons/dice_colors.svg");
 
 	actionLoadToThisGroupbox = menu->addAction(tr("Load to this groupbox"));
 	actionLoadToThisGroupbox->setIcon(iconLoad);
@@ -137,9 +139,13 @@ void MyGroupBox::contextMenuEvent(QContextMenuEvent *event)
 	actionResetAllToDefault = menu->addAction(tr("Reset all to default"));
 	actionResetAllToDefault->setIcon(iconReset);
 
+	actionRandomize = menu->addAction(tr("Randomize"));
+	actionRandomize->setIcon(iconRandomize);
+
 	connect(actionLoadToThisGroupbox, SIGNAL(triggered()), this, SLOT(slotLoadToThisGroupbox()));
 	connect(actionSaveFromThisGroupbox, SIGNAL(triggered()), this, SLOT(slotSaveFromThisGroupbox()));
 	connect(actionResetAllToDefault, SIGNAL(triggered()), this, SLOT(slotResetAllToDefault()));
+	connect(actionRandomize, SIGNAL(triggered()), this, SLOT(slotRandomize()));
 
 	CommonMyWidgetWrapper::contextMenuEvent(event, menu);
 }
@@ -165,4 +171,8 @@ void MyGroupBox::slotLoadToThisGroupbox()
 void MyGroupBox::slotSaveFromThisGroupbox()
 {
 	gMainInterface->SaveLocalSettings(this);
+}
+void MyGroupBox::slotRandomize()
+{
+	gMainInterface->RandomizeLocalSettings(this);
 }

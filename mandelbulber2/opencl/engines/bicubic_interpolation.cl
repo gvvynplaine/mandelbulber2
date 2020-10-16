@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -108,12 +108,24 @@ float3 BicubicInterpolation(float x, float y, __global uchar4 *texture, int w, i
 				TexturePixelAddressInt((int2){ix, iy}, (int2){w, h}, (int2){xx - 1, yy - 1});
 			uchar4 pixel = texture[texturePointAddress];
 
-			color[xx][yy] = (float3){pixel.s0 / 256.0f, pixel.s1 / 256.0f, pixel.s2 / 256.0f};
+			if (pixel.s3 != 0)
+			{
+				int exponent = (int)pixel.s3 - (128 + 8);
+				float f = ldexp(1.0f, exponent);
+				float r = (float)(pixel.s0 * f);
+				float g = (float)(pixel.s1 * f);
+				float b = (float)(pixel.s2 * f);
+				color[xx][yy] = (float3){r, g, b};
+			}
+			else
+			{
+				color[xx][yy] = (float3){0.0f, 0.0f, 0.0f};
+			}
 		}
 	}
 
 	float3 dColor = bicubicInterpolate(color, rx, ry);
-	dColor = clamp(dColor, (float3){0.0f, 0.0f, 0.0f}, (float3){1.0f, 1.0f, 1.0f});
+	dColor = clamp(dColor, (float3){0.0f, 0.0f, 0.0f}, (float3){1.0e32f, 1.0e32f, 1.0e32f});
 
 	return dColor;
 }

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2015-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2015-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,9 +35,11 @@
 #ifndef MANDELBULBER2_SRC_QUEUE_HPP_
 #define MANDELBULBER2_SRC_QUEUE_HPP_
 
+#include <memory>
 #include <utility>
 
-#include <QtCore>
+#include <QMutex>
+#include <QObject>
 
 // forward declarations
 class cImage;
@@ -47,6 +49,7 @@ class cAnimationFrames;
 class cKeyframes;
 class cInterface;
 class RenderedImage;
+class QFileSystemWatcher;
 
 namespace Ui
 {
@@ -80,21 +83,22 @@ public:
 
 	// initializes queue and create necessary files and folders
 	cQueue(cInterface *_interface, const QString &_queueListFileName, const QString &_queueFolder,
-		QObject *parent = nullptr);
+		QObject *parent);
 	~cQueue() override;
 
 	// add settings to queue
 	void Append(const QString &filename, enumRenderType renderType = queue_STILL);
 	void Append(enumRenderType renderType = queue_STILL);
-	void Append(cParameterContainer *par, cFractalContainer *fractPar, cAnimationFrames *frames,
-		cKeyframes *keyframes, enumRenderType renderType = queue_STILL);
+	void Append(std::shared_ptr<cParameterContainer> par, std::shared_ptr<cFractalContainer> fractPar,
+		std::shared_ptr<cAnimationFrames> frames, std::shared_ptr<cKeyframes> keyframes,
+		enumRenderType renderType = queue_STILL);
 	void AppendList(const QString &filename);
 	void AppendFolder(const QString &filename);
 
 	// get next queue element into given containers
 	bool Get();
-	bool Get(cParameterContainer *par, cFractalContainer *fractPar, cAnimationFrames *frames,
-		cKeyframes *keyframes);
+	bool Get(std::shared_ptr<cParameterContainer> par, std::shared_ptr<cFractalContainer> fractPar,
+		std::shared_ptr<cAnimationFrames> frames, std::shared_ptr<cKeyframes> keyframes);
 
 	// syncing methods
 	// find and delete files which are not on the list
@@ -179,7 +183,7 @@ private:
 	Ui::cDockQueue *ui;
 	RenderedImage *renderedImageWidget;
 
-	cImage *image;
+	std::shared_ptr<cImage> image;
 
 	QFileSystemWatcher *queueFileWatcher;
 	QFileSystemWatcher *queueFolderWatcher;

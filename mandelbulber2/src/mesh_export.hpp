@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-17 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,8 +35,6 @@
 #ifndef MANDELBULBER2_SRC_MESH_EXPORT_HPP_
 #define MANDELBULBER2_SRC_MESH_EXPORT_HPP_
 
-#include <QtCore>
-
 #include "algebra.hpp"
 #include "file_mesh.hpp"
 #include "progress_text.hpp"
@@ -51,13 +49,14 @@ public:
 	~cMeshExport() override;
 
 signals:
-	void updateProgressAndStatus(const QString &text, const QString &progressText, double progress);
+	void signalUpdateProgressAndStatus(
+		const QString &text, const QString &progressText, double progress);
 	void finished();
 
 public slots:
 	void Stop() { stop = true; }
 	void ProcessVolume();
-	void updateProgressAndStatus(int i);
+	void slotUpdateProgressAndStatus(int i, quint64 polygonsCount);
 
 private:
 	int w, h, l;

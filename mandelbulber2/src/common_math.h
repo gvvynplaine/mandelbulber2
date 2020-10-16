@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -38,8 +38,6 @@
 #ifndef _USE_MATH_DEFINES
 #define _USE_MATH_DEFINES
 #endif
-
-#include <QtCore>
 
 #include "algebra.hpp"
 
@@ -121,8 +119,8 @@ inline double LimitAngle(double angle)
 template <typename T>
 T SmoothCVector(const T &v1, const T &v2, double k);
 
-double cubicInterpolate(double p[4], double x);
-double bicubicInterpolate(double p[4][4], double x, double y);
+float cubicInterpolate(float p[4], float x);
+float bicubicInterpolate(float p[4][4], float x, float y);
 
 CVector3 wrap(CVector3 x, const CVector3 &a, const CVector3 &s);
 

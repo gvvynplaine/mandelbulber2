@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,8 +34,8 @@
 
 #include "multi_val.hpp"
 
+#include <QDebug>
 #include <QLocale>
-#include <QtCore>
 
 using namespace parameterContainer;
 
@@ -100,7 +100,7 @@ enumVarType cMultiVal::Store(double val)
 {
 	dVal[0] = val;
 	iVal[0] = int(val);
-	sVal = QString("%L1").arg(val, 0, 'g', 16);
+	sVal = QString("%L1").arg(val, 0, 'g', 15);
 
 	if (!typeDefined) type = typeDouble;
 	return typeDouble;
@@ -169,7 +169,7 @@ enumVarType cMultiVal::Store(CVector3 val)
 	iVal[1] = int(val.y);
 	iVal[2] = int(val.z);
 	sVal =
-		QString("%L1 %L2 %L3").arg(val.x, 0, 'g', 16).arg(val.y, 0, 'g', 16).arg(val.z, 0, 'g', 16);
+		QString("%L1 %L2 %L3").arg(val.x, 0, 'g', 15).arg(val.y, 0, 'g', 15).arg(val.z, 0, 'g', 15);
 
 	if (!typeDefined) type = typeVector3;
 	return type;
@@ -186,10 +186,10 @@ enumVarType cMultiVal::Store(CVector4 val)
 	iVal[2] = int(val.z);
 	iVal[3] = int(val.w);
 	sVal = QString("%L1 %L2 %L3 %L4")
-					 .arg(val.x, 0, 'g', 16)
-					 .arg(val.y, 0, 'g', 16)
-					 .arg(val.z, 0, 'g', 16)
-					 .arg(val.w, 0, 'g', 16);
+					 .arg(val.x, 0, 'g', 15)
+					 .arg(val.y, 0, 'g', 15)
+					 .arg(val.z, 0, 'g', 15)
+					 .arg(val.w, 0, 'g', 15);
 
 	if (!typeDefined) type = typeVector4;
 	return type;

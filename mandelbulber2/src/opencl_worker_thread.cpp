@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -37,19 +37,22 @@
 #include "opencl_worker_thread.h"
 
 #include <algorithm>
+#include <memory>
 
-#include <QtCore>
+#include <QDebug>
+#include <QVector>
 
 #include "algebra.hpp"
 #include "opencl_engine.h"
 #include "opencl_scheduler.h"
 #include "opencl_worker_output_queue.h"
-#include "system.hpp"
+#include "system_data.hpp"
+#include "wait.hpp"
 
 using std::min;
 
 cOpenClWorkerThread::cOpenClWorkerThread(
-	cOpenClEngine *engine, const QSharedPointer<cOpenClScheduler> scheduler, int _deviceIndex)
+	cOpenClEngine *engine, const std::shared_ptr<cOpenClScheduler> scheduler, int _deviceIndex)
 		: QObject(), deviceIndex(_deviceIndex)
 {
 	this->scheduler = scheduler;
@@ -126,6 +129,13 @@ void cOpenClWorkerThread::ProcessRenderingLoop()
 			quint64 jobWidth = min(optimalStepX, pixelsLeftX);
 			quint64 jobHeight = min(optimalStepY, pixelsLeftY);
 
+			if (*stopRequest || systemData.globalStopRequest)
+			{
+				emit finished();
+				finishedWithSuccess = false;
+				return;
+			}
+
 			if (jobX < imageWidth && jobY < imageHeight)
 			{
 				openclProcessingTime.restart();
@@ -151,7 +161,7 @@ void cOpenClWorkerThread::ProcessRenderingLoop()
 				quint64 outputItemlength = outputBuffers.at(outputIndex).length;
 				cOpenCLWorkerOutputQueue::sClDataBuffer dataBuffer(outputItemSize, outputItemlength);
 
-				char *startPtr = outputBuffers.at(outputIndex).ptr.data();
+				char *startPtr = outputBuffers.at(outputIndex).ptr.get();
 				char *endPtr = startPtr + outputBuffers.at(outputIndex).size();
 				dataBuffer.data.assign(startPtr, endPtr);
 
@@ -177,13 +187,6 @@ void cOpenClWorkerThread::ProcessRenderingLoop()
 					if (waitTime == 0) waitTime = 1;
 					thread()->usleep(waitTime);
 				}
-			}
-
-			if (*stopRequest || systemData.globalStopRequest)
-			{
-				emit finished();
-				finishedWithSuccess = false;
-				return;
 			}
 
 			// slow down to reduce length of queue
@@ -334,8 +337,8 @@ bool cOpenClWorkerThread::AddAntiAliasingParameters(int actualDepth, int repeatI
 		offset.y = 0.0f;
 	}
 
-	cl_float2 antiAliasingOffset = {offset.x, offset.y};
-	cl_int err = clKernel->setArg(6, antiAliasingOffset);
+	cl_float2 antiAliasingOffset = {{offset.x, offset.y}};
+	cl_int err = clKernel->setArg(7, antiAliasingOffset);
 	if (!checkErr(err, "kernel->setArg(6, cl_int(actualDepth))"))
 	{
 		emit showErrorMessage(tr("Cannot set OpenCL argument for %1").arg(tr("antiAliasingDepth")),

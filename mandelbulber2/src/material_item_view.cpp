@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-17 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -37,11 +37,12 @@
 
 #include "material_item_view.h"
 
-#include <qpainter.h>
-#include <qpushbutton.h>
-#include <qscrollbar.h>
+#include <QApplication>
+#include <QPainter>
+#include <QPushButton>
+#include <QScrollBar>
 
-#include "system.hpp"
+#include "system_data.hpp"
 
 #include "qt/material_widget.h"
 
@@ -244,5 +245,5 @@ void cMaterialItemView::setModel(QAbstractItemModel *model)
 void cMaterialItemView::updateNameHeight()
 {
 	QFont f = font();
-	maxNameHeight = max(f.pixelSize(), int(f.pointSizeF())) * 3;
+	maxNameHeight = qMax(f.pixelSize(), int(f.pointSizeF())) * 3;
 }

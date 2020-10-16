@@ -16,6 +16,10 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 	message(STATUS "MSVC Compiler Detected")
 endif()
 
+#set C++ 14
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 # Find includes in corresponding build directories.
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
@@ -67,7 +71,11 @@ file(GLOB srcHeader "../src/*.h" "../src/*.hpp")
 file(GLOB srcDef "../src/*.c" "../src/*.cpp")
 file(GLOB qtHeader "../qt/*.h" "../qt/*.hpp")
 file(GLOB qtDef "../qt/*.c" "../qt/*.cpp")
-set(SOURCE_FILES ${srcHeader} ${srcDef} ${qtHeader} ${qtDef} ../qt/icons.qrc)
+file(GLOB formulaHeader "../formula/definition/*.h" "../formula/definition/*.hpp")
+file(GLOB formulaDef "../formula/definition/*.c" "../formula/definition/*.cpp")
+file(GLOB stbHeaders "../third-part/stb/*.h")
+
+set(SOURCE_FILES ${srcHeader} ${srcDef} ${qtHeader} ${qtDef} ${formulaHeader} ${formulaDef} ${stbHeaders} ../qt/icons.qrc)
 set(CMAKE_AUTOUIC_SEARCH_PATHS ../qt/)
 
 # Find all ui files in qt/*.ui and add for header generation and linking.

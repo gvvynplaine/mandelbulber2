@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,14 +34,11 @@
 
 #include "stereo.h"
 
-#include <QtCore>
-
 #include "cimage.hpp"
 cStereo::cStereo()
 {
 	swapped = false;
 	stereoMode = stereoDisabled;
-	imageBuffer = nullptr;
 	imageBufferWidth = 0;
 	imageBufferHeight = 0;
 	forceEye = eyeNone;
@@ -49,11 +46,7 @@ cStereo::cStereo()
 
 cStereo::~cStereo()
 {
-	if (imageBuffer)
-	{
-		delete[] imageBuffer;
-		imageBuffer = nullptr;
-	}
+	// nothing to delete
 }
 
 void cStereo::SetMode(enumStereoMode mode)
@@ -259,20 +252,18 @@ void cStereo::ViewVectorCorrection(double correction, const CRotationMatrix &mRo
 	}
 }
 
-void cStereo::StoreImageInBuffer(cImage *image)
+void cStereo::StoreImageInBuffer(std::shared_ptr<cImage> image)
 {
 	int width = image->GetWidth();
 	int height = image->GetHeight();
 	unsigned int size = width * height;
-	if (imageBuffer) delete[] imageBuffer;
-	imageBuffer = new sRGB16[size];
-	sRGB16 *image16Ptr = image->GetImage16Ptr();
-	memcpy(imageBuffer, image16Ptr, size * sizeof(sRGB16));
+	imageBuffer.resize(size);
+	imageBuffer = image->GetImage16();
 	imageBufferWidth = width;
 	imageBufferHeight = height;
 }
 
-void cStereo::MixImages(cImage *image) const
+void cStereo::MixImages(std::shared_ptr<cImage> image) const
 {
 	int width = image->GetWidth();
 	int height = image->GetHeight();

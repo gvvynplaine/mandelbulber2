@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,10 +34,12 @@
 
 #include "wave_form_view.h"
 
+#include <memory>
+
 #include <QPainter>
 
 #include "src/audio_track.h"
-#include "src/system.hpp"
+#include "src/write_log.hpp"
 
 cWaveFormView::cWaveFormView(QWidget *parent) : QWidget(parent)
 {
@@ -49,7 +51,7 @@ cWaveFormView::cWaveFormView(QWidget *parent) : QWidget(parent)
 
 cWaveFormView::~cWaveFormView() = default;
 
-void cWaveFormView::AssignAudioTrack(const QSharedPointer<cAudioTrack> audiotrack)
+void cWaveFormView::AssignAudioTrack(const std::shared_ptr<cAudioTrack> audiotrack)
 {
 	if (audiotrack && audiotrack->isLoaded())
 	{
@@ -62,7 +64,7 @@ void cWaveFormView::AssignAudioTrack(const QSharedPointer<cAudioTrack> audiotrac
 		const int sampleRate = audiotrack->getSampleRate();
 		numberOfFrames = audiotrack->getNumberOfFrames();
 		framesPerSecond = audiotrack->getFramesPerSecond();
-		audioFrame *audioBuffer = new audioFrame[numberOfFrames + 1];
+		std::vector<audioFrame> audioBuffer(numberOfFrames + 1);
 
 		setFixedWidth(numberOfFrames);
 
@@ -105,8 +107,6 @@ void cWaveFormView::AssignAudioTrack(const QSharedPointer<cAudioTrack> audiotrac
 		scaledWaveImage =
 			waveImage.scaled(width(), height, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
 		update();
-
-		delete[] audioBuffer;
 
 		WriteLog("WaveFormView created", 2);
 	}

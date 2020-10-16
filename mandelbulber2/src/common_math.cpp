@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -167,19 +167,19 @@ template CVector2<double> SmoothCVector(
 template CVector3 SmoothCVector(const CVector3 &v1, const CVector3 &v2, double k);
 template CVector4 SmoothCVector(const CVector4 &v1, const CVector4 &v2, double k);
 
-double cubicInterpolate(double p[4], double x)
+float cubicInterpolate(float p[4], float x)
 {
 	return p[1]
-				 + 0.5 * x
+				 + 0.5f * x
 						 * (p[2] - p[0]
 								 + x
-										 * (2.0 * p[0] - 5.0 * p[1] + 4.0 * p[2] - p[3]
-												 + x * (3.0 * (p[1] - p[2]) + p[3] - p[0])));
+										 * (2.0f * p[0] - 5.0f * p[1] + 4.0f * p[2] - p[3]
+												 + x * (3.0f * (p[1] - p[2]) + p[3] - p[0])));
 }
 
-double bicubicInterpolate(double p[4][4], double x, double y)
+float bicubicInterpolate(float p[4][4], float x, float y)
 {
-	double yy[4];
+	float yy[4];
 	yy[0] = cubicInterpolate(p[0], y);
 	yy[1] = cubicInterpolate(p[1], y);
 	yy[2] = cubicInterpolate(p[2], y);

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -50,8 +50,7 @@ MyColorButton::MyColorButton(QWidget *parent) : QPushButton(parent), CommonMyWid
 
 MyColorButton::~MyColorButton()
 {
-	delete painter;
-	delete pix;
+	// nothing to delete
 }
 
 void MyColorButton::resetToDefault()
@@ -115,8 +114,8 @@ void MyColorButton::UpdateColor()
 
 void MyColorButton::SetupColor()
 {
-	pix = new QPixmap(w, h);
-	painter = new QPainter(pix);
+	pix.reset(new QPixmap(w, h));
+	painter.reset(new QPainter(pix.get()));
 }
 
 void MyColorButton::mousePressEvent(QMouseEvent *event)

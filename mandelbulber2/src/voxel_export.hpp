@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -40,7 +40,8 @@
 #ifndef MANDELBULBER2_SRC_VOXEL_EXPORT_HPP_
 #define MANDELBULBER2_SRC_VOXEL_EXPORT_HPP_
 
-#include <QtCore>
+#include <QDir>
+#include <QObject>
 
 #include "algebra.hpp"
 
@@ -49,7 +50,8 @@ class cVoxelExport : public QObject
 	Q_OBJECT
 
 public:
-	cVoxelExport(int w, int h, int l, CVector3 limitMin, CVector3 limitMax, QDir folder, int maxIter);
+	cVoxelExport(int w, int h, int l, CVector3 limitMin, CVector3 limitMax, QDir folder, int maxIter,
+		bool greyscale);
 	~cVoxelExport() override;
 
 signals:
@@ -63,12 +65,13 @@ public slots:
 private:
 	bool StoreLayer(int z) const;
 
-	QScopedArrayPointer<unsigned char> voxelLayer;
+	std::vector<unsigned char> voxelLayer;
 	long long w, h, l;
 	CVector3 limitMin;
 	CVector3 limitMax;
 	QDir folder;
 	int maxIter;
+	bool greyscale;
 	bool stop;
 };
 

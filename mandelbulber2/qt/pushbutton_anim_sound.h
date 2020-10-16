@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-17 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -37,6 +37,8 @@
 
 #include <qpushbutton.h>
 
+#include <memory>
+
 // forward declarations
 class cAnimationFrames;
 
@@ -47,7 +49,7 @@ public:
 	cPushButtonAnimSound(QWidget *parent = nullptr);
 	~cPushButtonAnimSound() override;
 	void AssignParameterName(const QString &_parameterName);
-	void AssignAnimation(cAnimationFrames *_animationFrames)
+	void AssignAnimation(std::shared_ptr<cAnimationFrames> _animationFrames)
 	{
 		animationFrames = _animationFrames;
 		slotUpdateButton();
@@ -59,7 +61,7 @@ private slots:
 
 private:
 	QString parameterName;
-	cAnimationFrames *animationFrames;
+	std::shared_ptr<cAnimationFrames> animationFrames;
 };
 
 #endif /* MANDELBULBER2_QT_PUSHBUTTON_ANIM_SOUND_H_ */

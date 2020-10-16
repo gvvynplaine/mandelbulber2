@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2015-16 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2015-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,17 +35,15 @@
 #ifndef MANDELBULBER2_SRC_HISTOGRAM_HPP_
 #define MANDELBULBER2_SRC_HISTOGRAM_HPP_
 
-#include <algorithm>
+#include <vector>
 
-#include <QtCore>
+#include <QMetaType>
 
 class cHistogram
 {
 public:
 	cHistogram();
 	cHistogram(int size);
-	cHistogram(const cHistogram &source);
-	cHistogram &operator=(const cHistogram &source);
 	~cHistogram();
 	void Resize(int size);
 	void Clear();
@@ -73,9 +71,8 @@ public:
 
 private:
 	void Alloc(int size);
-	void Copy(const cHistogram &source);
 
-	long *data;
+	std::vector<long> data;
 	long long count;
 	long long sum;
 	int histSize;

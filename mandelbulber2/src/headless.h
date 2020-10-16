@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2015-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2015-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,7 +35,8 @@
 #ifndef MANDELBULBER2_SRC_HEADLESS_H_
 #define MANDELBULBER2_SRC_HEADLESS_H_
 
-#include <QtCore>
+#include <QObject>
+#include <QString>
 
 #include "progress_text.hpp"
 #include "statistics.h"
@@ -44,7 +45,7 @@ class cHeadless : public QObject
 {
 	Q_OBJECT
 public:
-	cHeadless();
+	cHeadless(QObject *parent);
 	~cHeadless() override;
 
 	enum ansiColor
@@ -63,8 +64,8 @@ public:
 	void RenderStillImage(QString filename, QString imageFileFormat);
 	[[noreturn]] static void RenderQueue();
 	void RenderVoxel(QString voxelFormat);
-	void RenderFlightAnimation() const;
-	void RenderKeyframeAnimation() const;
+	void RenderFlightAnimation();
+	void RenderKeyframeAnimation();
 	static void RenderingProgressOutput(
 		const QString &header, const QString &progressTxt, double percentDone);
 	static QString colorize(QString text, ansiColor foregroundColor,

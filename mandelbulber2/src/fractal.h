@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,8 +35,11 @@
 #ifndef MANDELBULBER2_SRC_FRACTAL_H_
 #define MANDELBULBER2_SRC_FRACTAL_H_
 
+#include <memory>
+
 #include "algebra.hpp"
-#include "fractal_list_enums.hpp"
+
+#include "formula/definition/all_fractal_list_enums.hpp"
 
 #ifndef M_PI_180
 #define M_PI_180 0.01745329251994329576923690768489
@@ -79,7 +82,6 @@ struct sExtendedAux
 	CVector4 old_z;
 	// CVector4 sum_z;
 	double pos_neg;
-	double cw;
 
 	double r;
 	double DE;
@@ -94,7 +96,6 @@ struct sExtendedAux
 	double colorHybrid;
 
 	double temp1000;
-	double addDist;
 };
 
 struct sFoldColor
@@ -489,10 +490,13 @@ struct sFractalAnalyticDE
 struct sFractalTransformCommon
 {
 	double angle0;
+	double angle72;
 	double alphaAngleOffset;
 	double betaAngleOffset;
 	double foldingValue;
 	double foldingLimit;
+	double invert0;
+	double invert1;
 	double offset;
 	double offset0;
 	double offsetA0;
@@ -503,8 +507,11 @@ struct sFractalTransformCommon
 	double offsetF0;
 	double offsetR0;
 	double offset0005;
+	double offsetp05;
+	double offset01;
 	double offset05;
 	double offsetA05;
+	double offsetB05;
 	double offset1;
 	double offsetA1;
 	double offsetR1;
@@ -549,6 +556,7 @@ struct sFractalTransformCommon
 	double scaleA3;
 	double scaleB3;
 	double scale4;
+	double scale6;
 	double scale8;
 	double scaleMain2;
 	double scaleVary0;
@@ -559,6 +567,8 @@ struct sFractalTransformCommon
 	double pwr8a;
 	double sqtR;
 	double mboxFactor1;
+	double inv0;
+	double inv1;
 
 	int startIterations;
 	int startIterations250;
@@ -624,6 +634,8 @@ struct sFractalTransformCommon
 	int intA;
 	int intB;
 	int int1;
+	int intA1;
+	int intB1;
 	int int2;
 	int int3;
 	int int3X;
@@ -674,6 +686,7 @@ struct sFractalTransformCommon
 	CVector4 offsetA200;
 	CVector4 offset222;
 	CVector4 offsetA222;
+	CVector4 offset333;
 	CVector4 power025;
 	CVector4 power8;
 	CVector4 vec111;
@@ -698,6 +711,7 @@ struct sFractalTransformCommon
 	CVector4 additionConstant0000;
 	CVector4 offset0000;
 	CVector4 offsetA0000;
+	CVector4 offsetp5555;
 	CVector4 offset1111;
 	CVector4 offsetA1111;
 	CVector4 offsetB1111;
@@ -782,7 +796,7 @@ struct sFractalTransformCommon
 
 struct sFractal
 {
-	sFractal(const cParameterContainer *par);
+	sFractal(const std::shared_ptr<cParameterContainer> par);
 	void RecalculateFractalParams();
 
 	fractal::enumFractalFormula formula;

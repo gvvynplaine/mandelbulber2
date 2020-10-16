@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -42,19 +42,20 @@
 #include "nine_fractals.hpp"
 #include "parameters.hpp"
 #include "random.hpp"
-#include "system.hpp"
+#include "system_data.hpp"
+#include "write_log.hpp"
 
 cLights::cLights() : QObject()
 {
-	lights = nullptr;
 	numberOfLights = 0;
 	lightsReady = false;
 	isAnyLight = false;
 }
 
-cLights::cLights(const cParameterContainer *_params, const cFractalContainer *_fractal) : QObject()
+cLights::cLights(const std::shared_ptr<cParameterContainer> _params,
+	const std::shared_ptr<cFractalContainer> _fractal)
+		: QObject()
 {
-	lights = nullptr;
 	numberOfLights = 0;
 	lightsReady = false;
 	isAnyLight = false;
@@ -64,30 +65,26 @@ cLights::cLights(const cParameterContainer *_params, const cFractalContainer *_f
 
 cLights::~cLights()
 {
-	if (lights)
-	{
-		delete[] lights;
-		lights = nullptr;
-	}
+	// nothing to delete
 }
 
-void cLights::Set(const cParameterContainer *_params, const cFractalContainer *_fractal)
+void cLights::Set(const std::shared_ptr<cParameterContainer> _params,
+	const std::shared_ptr<cFractalContainer> _fractal)
 {
 	WriteLog("Preparation of lights started", 2);
 	// move parameters from containers to structures
-	const sParamRender *params = new sParamRender(_params);
-	const cNineFractals *fractals = new cNineFractals(_fractal, _params);
+	std::unique_ptr<const sParamRender> params(new sParamRender(_params));
+	std::unique_ptr<const cNineFractals> fractals(new cNineFractals(_fractal, _params));
 
 	numberOfLights = params->auxLightNumber;
 
-	if (lights) delete[] lights;
 	if (params->auxLightRandomEnabled)
 	{
-		lights = new sLight[numberOfLights + params->auxLightRandomNumber];
+		lights.resize(numberOfLights + params->auxLightRandomNumber);
 	}
 	else
 	{
-		lights = new sLight[numberOfLights];
+		lights.resize(numberOfLights);
 	}
 
 	// custom user defined lights
@@ -184,19 +181,16 @@ void cLights::Set(const cParameterContainer *_params, const cFractalContainer *_
 
 	lightsReady = true;
 
-	delete params;
-	delete fractals;
-
 	WriteLog("Preparation of lights finished", 2);
 }
 
-sLight *cLights::GetLight(const int index) const
+const sLight *cLights::GetLight(const int index) const
 {
 	if (lightsReady)
 	{
 		if (index < numberOfLights)
 		{
-			return &lights[index];
+			return &(lights[index]);
 		}
 		else
 		{
@@ -208,18 +202,4 @@ sLight *cLights::GetLight(const int index) const
 		qCritical() << "Lights not initialized";
 	}
 	return const_cast<sLight *>(&dummyLight);
-}
-
-void cLights::Copy(const cLights &_lights)
-{
-	numberOfLights = _lights.numberOfLights;
-	lightsReady = _lights.lightsReady;
-	if (lights) delete[] lights;
-	lights = new sLight[numberOfLights];
-	isAnyLight = _lights.isAnyLight;
-
-	for (int i = 0; i < numberOfLights; i++)
-	{
-		lights[i] = _lights.lights[i];
-	}
 }

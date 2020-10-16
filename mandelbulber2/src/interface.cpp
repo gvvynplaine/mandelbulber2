@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -61,6 +61,7 @@
 #include "post_effect_hdr_blur.h"
 #include "queue.hpp"
 #include "random.hpp"
+#include "randomizer_dialog.h"
 #include "render_data.hpp"
 #include "render_job.hpp"
 #include "render_ssao.h"
@@ -68,8 +69,11 @@
 #include "rendered_image_widget.hpp"
 #include "rendering_configuration.hpp"
 #include "settings.hpp"
+#include "system_data.hpp"
 #include "trace_behind.h"
+#include "tree_string_list.h"
 #include "undo.h"
+#include "write_log.hpp"
 
 #include "qt/detached_window.h"
 #include "qt/material_editor.h"
@@ -77,6 +81,7 @@
 #include "qt/my_progress_bar.h"
 #include "qt/player_widget.hpp"
 #include "qt/preview_file_dialog.h"
+#include "qt/settings_cleaner.h"
 #include "qt/system_tray.hpp"
 
 // custom includes
@@ -92,7 +97,6 @@ cInterface::cInterface(QObject *parent) : QObject(parent)
 	mainWindow = nullptr;
 	detachedWindow = nullptr;
 	headless = nullptr;
-	qImage = nullptr;
 	renderedImage = nullptr;
 	imageSequencePlayer = nullptr;
 	mainImage = nullptr;
@@ -118,17 +122,7 @@ cInterface::cInterface(QObject *parent) : QObject(parent)
 
 cInterface::~cInterface()
 {
-	if (renderedImage) delete renderedImage;
 	if (imageSequencePlayer) delete imageSequencePlayer;
-	if (progressBar) delete progressBar;
-	if (progressBarAnimation) delete progressBarAnimation;
-	if (progressBarQueueImage) delete progressBarQueueImage;
-	if (progressBarQueueAnimation) delete progressBarQueueAnimation;
-	if (progressBarFrame) delete progressBarFrame;
-	if (progressBarLayout) delete progressBarLayout;
-	if (qImage) delete qImage;
-	if (mainImage) delete mainImage;
-	if (headless) delete headless;
 	if (mainWindow) delete mainWindow;
 }
 
@@ -148,7 +142,9 @@ void cInterface::ShowUi()
 	systemData.SetPreferredFontSize(pixelFontSize);
 	systemData.SetPreferredThumbnailSize(thumbnailSize);
 
-	mainWindow = new RenderWindow;
+	systemData.setPreferredCustomFormulaFontSize(gPar->Get<int>("custom_formula_font_size"));
+
+	mainWindow = new RenderWindow();
 
 	WriteLog("Restoring window geometry", 2);
 
@@ -201,10 +197,10 @@ void cInterface::ShowUi()
 
 	// setup main image
 	WriteLog("Setup of main image", 2);
-	mainImage = new cImage(gPar->Get<int>("image_width"), gPar->Get<int>("image_height"));
+	mainImage.reset(new cImage(gPar->Get<int>("image_width"), gPar->Get<int>("image_height")));
 	mainImage->CreatePreview(1.0, 800, 600, renderedImage);
 	mainImage->CompileImage();
-	mainImage->ConvertTo8bit();
+	mainImage->ConvertTo8bitChar();
 	mainImage->UpdatePreview();
 	mainImage->SetAsMainImage();
 	renderedImage->setMinimumSize(
@@ -232,7 +228,7 @@ void cInterface::ShowUi()
 	progressBar->setAlignment(Qt::AlignCenter);
 	progressBarLayout->addWidget(progressBar);
 
-	QFrame *progressBarFrameInternal = new QFrame;
+	QFrame *progressBarFrameInternal = new QFrame(mainWindow->ui->statusbar);
 	progressBarFrameInternal->setLayout(progressBarLayout);
 	mainWindow->ui->statusbar->addPermanentWidget(progressBarFrameInternal);
 
@@ -324,84 +320,90 @@ void cInterface::ConnectSignals() const
 		SLOT(appendMessage(const QString &)));
 
 	// menu actions
-	connect(mainWindow->ui->actionQuit, SIGNAL(triggered()), mainWindow, SLOT(slotQuit()));
-	connect(mainWindow->ui->actionSave_docks_positions, SIGNAL(triggered()), mainWindow,
-		SLOT(slotMenuSaveDocksPositions()));
-	connect(mainWindow->ui->actionDefault_docks_positions, SIGNAL(triggered()), mainWindow,
-		SLOT(slotMenuResetDocksPositions()));
-	connect(mainWindow->ui->actionAnimation_docks_positions, SIGNAL(triggered()), mainWindow,
-		SLOT(slotMenuAnimationDocksPositions()));
-	connect(mainWindow->ui->actionStack_all_docks, SIGNAL(triggered()), mainWindow,
-		SLOT(slotStackAllDocks()));
-	connect(mainWindow->ui->actionShow_animation_dock, SIGNAL(triggered()), mainWindow,
-		SLOT(slotUpdateDocksAndToolbarByAction()));
-	connect(mainWindow->ui->actionShow_toolbar, SIGNAL(triggered()), mainWindow,
-		SLOT(slotUpdateDocksAndToolbarByAction()));
-	connect(mainWindow->ui->actionShow_info_dock, SIGNAL(triggered()), mainWindow,
-		SLOT(slotUpdateDocksAndToolbarByAction()));
-	connect(mainWindow->ui->actionShow_statistics_dock, SIGNAL(triggered()), mainWindow,
-		SLOT(slotUpdateDocksAndToolbarByAction()));
-	connect(mainWindow->ui->actionShow_gamepad_dock, SIGNAL(triggered()), mainWindow,
-		SLOT(slotUpdateDocksAndToolbarByAction()));
-	connect(mainWindow->ui->actionShow_queue_dock, SIGNAL(triggered()), mainWindow,
-		SLOT(slotUpdateDocksAndToolbarByAction()));
-	connect(mainWindow->ui->actionShow_measurement_dock, SIGNAL(triggered()), mainWindow,
-		SLOT(slotUpdateDocksAndToolbarByAction()));
-	connect(mainWindow->ui->actionSave_settings, SIGNAL(triggered()), mainWindow,
-		SLOT(slotMenuSaveSettings()));
-	connect(mainWindow->ui->actionSave_settings_to_clipboard, SIGNAL(triggered()), mainWindow,
-		SLOT(slotMenuSaveSettingsToClipboard()));
-	connect(mainWindow->ui->actionLoad_settings, SIGNAL(triggered()), mainWindow,
-		SLOT(slotMenuLoadSettings()));
-	connect(mainWindow->ui->actionLoad_settings_from_clipboard, SIGNAL(triggered()), mainWindow,
-		SLOT(slotMenuLoadSettingsFromClipboard()));
-	connect(mainWindow->ui->actionLoad_example, SIGNAL(triggered()), mainWindow,
-		SLOT(slotMenuLoadExample()));
-	connect(mainWindow->ui->actionImport_settings_from_old_Mandelbulber, SIGNAL(triggered()),
-		mainWindow, SLOT(slotImportOldSettings()));
-	connect(mainWindow->ui->actionImport_settings_from_Mandelbulb3d, SIGNAL(triggered()), mainWindow,
-		SLOT(slotImportMandelbulb3dSettings()));
-	connect(mainWindow->ui->actionExportVoxelLayers, SIGNAL(triggered()), mainWindow,
-		SLOT(slotExportVoxelLayers()));
-	connect(
-		mainWindow->ui->actionExport_Mesh, SIGNAL(triggered()), mainWindow, SLOT(slotExportMesh()));
-	connect(mainWindow->ui->actionSave_as_JPG, SIGNAL(triggered()), mainWindow,
-		SLOT(slotMenuSaveImageJPEG()));
-	connect(mainWindow->ui->actionSave_as_IMAGE, SIGNAL(triggered()), mainWindow,
-		SLOT(slotMenuSaveImageAll()));
-	connect(mainWindow->ui->actionSave_as_PNG, SIGNAL(triggered()), mainWindow,
-		SLOT(slotMenuSaveImagePNG()));
-	connect(mainWindow->ui->actionSave_as_PNG_16_bit, SIGNAL(triggered()), mainWindow,
-		SLOT(slotMenuSaveImagePNG16()));
-	connect(mainWindow->ui->actionSave_as_PNG_16_bit_with_alpha_channel, SIGNAL(triggered()),
-		mainWindow, SLOT(slotMenuSaveImagePNG16Alpha()));
+	connect(mainWindow->ui->actionQuit, &QAction::triggered, mainWindow, &RenderWindow::slotQuit);
+	connect(mainWindow->ui->actionSave_docks_positions, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuSaveDocksPositions);
+	connect(mainWindow->ui->actionDefault_docks_positions, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuResetDocksPositions);
+	connect(mainWindow->ui->actionAnimation_docks_positions, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuAnimationDocksPositions);
+	connect(mainWindow->ui->actionStack_all_docks, &QAction::triggered, mainWindow,
+		&RenderWindow::slotStackAllDocks);
+	connect(mainWindow->ui->actionShow_animation_dock, &QAction::triggered, mainWindow,
+		&RenderWindow::slotUpdateDocksAndToolbarByAction);
+	connect(mainWindow->ui->actionShow_toolbar, &QAction::triggered, mainWindow,
+		&RenderWindow::slotUpdateDocksAndToolbarByAction);
+	connect(mainWindow->ui->actionShow_info_dock, &QAction::triggered, mainWindow,
+		&RenderWindow::slotUpdateDocksAndToolbarByAction);
+	connect(mainWindow->ui->actionShow_statistics_dock, &QAction::triggered, mainWindow,
+		&RenderWindow::slotUpdateDocksAndToolbarByAction);
+	connect(mainWindow->ui->actionShow_gamepad_dock, &QAction::triggered, mainWindow,
+		&RenderWindow::slotUpdateDocksAndToolbarByAction);
+	connect(mainWindow->ui->actionShow_queue_dock, &QAction::triggered, mainWindow,
+		&RenderWindow::slotUpdateDocksAndToolbarByAction);
+	connect(mainWindow->ui->actionShow_measurement_dock, &QAction::triggered, mainWindow,
+		&RenderWindow::slotUpdateDocksAndToolbarByAction);
+	connect(mainWindow->ui->actionSave_settings, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuSaveSettings);
+	connect(mainWindow->ui->actionSave_settings_to_clipboard, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuSaveSettingsToClipboard);
+	connect(mainWindow->ui->actionLoad_settings, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuLoadSettings);
+	connect(mainWindow->ui->actionLoad_settings_from_clipboard, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuLoadSettingsFromClipboard);
+	connect(mainWindow->ui->actionLoad_example, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuLoadExample);
+	connect(mainWindow->ui->actionImport_settings_from_old_Mandelbulber, &QAction::triggered,
+		mainWindow, &RenderWindow::slotImportOldSettings);
+	connect(mainWindow->ui->actionImport_settings_from_Mandelbulb3d, &QAction::triggered, mainWindow,
+		&RenderWindow::slotImportMandelbulb3dSettings);
+	connect(mainWindow->ui->actionExportVoxelLayers, &QAction::triggered, mainWindow,
+		&RenderWindow::slotExportVoxelLayers);
+	connect(mainWindow->ui->actionExport_Mesh, &QAction::triggered, mainWindow,
+		&RenderWindow::slotExportMesh);
+	connect(mainWindow->ui->actionSave_as_JPG, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuSaveImageJPEG);
+	connect(mainWindow->ui->actionSave_as_IMAGE, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuSaveImageAll);
+	connect(mainWindow->ui->actionSave_as_PNG, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuSaveImagePNG);
+	connect(mainWindow->ui->actionSave_as_PNG_16_bit, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuSaveImagePNG16);
+	connect(mainWindow->ui->actionSave_as_PNG_16_bit_with_alpha_channel, &QAction::triggered,
+		mainWindow, &RenderWindow::slotMenuSaveImagePNG16Alpha);
 #ifdef USE_EXR
-	connect(mainWindow->ui->actionSave_as_EXR, SIGNAL(triggered()), mainWindow,
-		SLOT(slotMenuSaveImageEXR()));
+	connect(mainWindow->ui->actionSave_as_EXR, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuSaveImageEXR);
 #endif // USE_EXR
 
 #ifdef USE_TIFF
-	connect(mainWindow->ui->actionSave_as_TIFF, SIGNAL(triggered()), mainWindow,
-		SLOT(slotMenuSaveImageTIFF()));
+	connect(mainWindow->ui->actionSave_as_TIFF, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuSaveImageTIFF);
 #endif // USE_TIFF
 
-	connect(mainWindow->ui->actionAbout_Qt, SIGNAL(triggered()), mainWindow, SLOT(slotMenuAboutQt()));
-	connect(mainWindow->ui->actionUser_Manual, SIGNAL(triggered()), mainWindow,
-		SLOT(slotMenuAboutManual()));
-	connect(
-		mainWindow->ui->actionUser_News, SIGNAL(triggered()), mainWindow, SLOT(slotMenuAboutNews()));
-	connect(mainWindow->ui->actionUser_HotKeys, SIGNAL(triggered()), mainWindow,
-		SLOT(slotMenuAboutHotKeys()));
-	connect(mainWindow->ui->actionAbout_Mandelbulber, SIGNAL(triggered()), mainWindow,
-		SLOT(slotMenuAboutMandelbulber()));
-	connect(mainWindow->ui->actionAbout_ThirdParty, SIGNAL(triggered()), mainWindow,
-		SLOT(slotMenuAboutThirdParty()));
-	connect(mainWindow->ui->actionUndo, SIGNAL(triggered()), mainWindow, SLOT(slotMenuUndo()));
-	connect(mainWindow->ui->actionRedo, SIGNAL(triggered()), mainWindow, SLOT(slotMenuRedo()));
-	connect(mainWindow->ui->actionProgramPreferences, SIGNAL(triggered()), mainWindow,
-		SLOT(slotMenuProgramPreferences()));
-	connect(mainWindow->ui->actionDetach_image_from_main_window, SIGNAL(triggered()), mainWindow,
-		SLOT(slotDetachMainImage()));
+	connect(mainWindow->ui->actionAbout_Qt, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuAboutQt);
+	connect(mainWindow->ui->actionUser_Manual, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuAboutManual);
+	connect(mainWindow->ui->actionUser_News, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuAboutNews);
+	connect(mainWindow->ui->actionUser_HotKeys, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuAboutHotKeys);
+	connect(mainWindow->ui->actionAbout_Mandelbulber, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuAboutMandelbulber);
+	connect(mainWindow->ui->actionAbout_ThirdParty, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuAboutThirdParty);
+	connect(mainWindow->ui->actionUndo, &QAction::triggered, mainWindow, &RenderWindow::slotMenuUndo);
+	connect(mainWindow->ui->actionRedo, &QAction::triggered, mainWindow, &RenderWindow::slotMenuRedo);
+	connect(mainWindow->ui->actionRandomizeAll, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuRandomizeAll);
+	connect(mainWindow->ui->actionCleanSettings, &QAction::triggered, mainWindow,
+		&RenderWindow::slotCleanSettings);
+
+	connect(mainWindow->ui->actionProgramPreferences, &QAction::triggered, mainWindow,
+		&RenderWindow::slotMenuProgramPreferences);
+	connect(mainWindow->ui->actionDetach_image_from_main_window, &QAction::triggered, mainWindow,
+		&RenderWindow::slotDetachMainImage);
 
 	connect(mainWindow->ui->scrollAreaForImage, SIGNAL(resized(int, int)), mainWindow,
 		SLOT(slotResizedScrolledAreaImage(int, int)));
@@ -411,8 +413,8 @@ void cInterface::ConnectSignals() const
 	// rendered image widget
 	connect(
 		renderedImage, SIGNAL(mouseMoved(int, int)), mainWindow, SLOT(slotMouseMovedOnImage(int, int)));
-	connect(renderedImage, SIGNAL(singleClick(int, int, Qt::MouseButton)), mainWindow,
-		SLOT(slotMouseClickOnImage(int, int, Qt::MouseButton)));
+	connect(
+		renderedImage, &RenderedImage::singleClick, mainWindow, &RenderWindow::slotMouseClickOnImage);
 	connect(renderedImage, SIGNAL(keyPress(QKeyEvent *)), mainWindow,
 		SLOT(slotKeyPressOnImage(QKeyEvent *)));
 	connect(renderedImage, SIGNAL(keyRelease(QKeyEvent *)), mainWindow,
@@ -447,23 +449,24 @@ void cInterface::ConnectSignals() const
 	connect(mainWindow->ui->dockWidget_measurement, SIGNAL(visibilityChanged(bool)), mainWindow,
 		SLOT(slotUpdateDocksAndToolbarByView()));
 
-	connect(mainWindow->ui->actionAdd_Settings_to_Toolbar, SIGNAL(triggered()), mainWindow,
-		SLOT(slotPresetAddToToolbar()));
-	connect(mainWindow->ui->actionAdd_CustomWindowStateToMenu, SIGNAL(triggered()), mainWindow,
-		SLOT(slotCustomWindowStateAddToMenu()));
-	connect(mainWindow->ui->actionRemove_Window_settings, SIGNAL(triggered()), mainWindow,
-		SLOT(slotCustomWindowRemovePopup()));
+	connect(mainWindow->ui->actionAdd_Settings_to_Toolbar, &QAction::triggered, mainWindow,
+		&RenderWindow::slotPresetAddToToolbar);
+	connect(mainWindow->ui->actionAdd_CustomWindowStateToMenu, &QAction::triggered, mainWindow,
+		&RenderWindow::slotCustomWindowStateAddToMenu);
+	connect(mainWindow->ui->actionRemove_Window_settings, &QAction::triggered, mainWindow,
+		&RenderWindow::slotCustomWindowRemovePopup);
 
 	//------------------------------------------------
 	mainWindow->slotUpdateDocksAndToolbarByView();
 }
 
 // Reading ad writing parameters from/to ui to/from parameters container
-void cInterface::SynchronizeInterface(
-	cParameterContainer *par, cFractalContainer *parFractal, qInterface::enumReadWrite mode) const
+void cInterface::SynchronizeInterface(std::shared_ptr<cParameterContainer> par,
+	std::shared_ptr<cFractalContainer> parFractal, qInterface::enumReadWrite mode) const
 {
 	WriteLog(
-		"cInterface::SynchronizeInterface(cParameterContainer *par, cFractalContainer *parFractal, "
+		"cInterface::SynchronizeInterface(std::shared_ptr<cParameterContainer> par, cFractalContainer "
+		"*parFractal, "
 		"enumReadWrite mode)",
 		2);
 
@@ -531,7 +534,7 @@ void cInterface::StartRender(bool noUndo)
 		autoRefreshLastHash = tempSettings.GetHashCode();
 	}
 
-	if (!noUndo) gUndo.Store(gPar, gParFractal);
+	if (!noUndo) gUndo->Store(gPar, gParFractal);
 
 	DisableJuliaPointMode();
 
@@ -542,11 +545,11 @@ void cInterface::StartRender(bool noUndo)
 		mainWindow, SLOT(slotUpdateProgressAndStatus(const QString &, const QString &, double)));
 	connect(renderJob, SIGNAL(updateStatistics(cStatistics)), mainWindow->ui->widgetDockStatistics,
 		SLOT(slotUpdateStatistics(cStatistics)));
-	connect(renderJob, SIGNAL(fullyRendered(const QString &, const QString &)), systemTray,
-		SLOT(showMessage(const QString &, const QString &)));
+	connect(renderJob, &cRenderJob::fullyRendered, systemTray, &cSystemTray::showMessage);
 	connect(renderJob, SIGNAL(updateImage()), renderedImage, SLOT(update()));
 	connect(renderJob, SIGNAL(sendRenderedTilesList(QList<sRenderedTileData>)), renderedImage,
 		SLOT(showRenderedTilesList(QList<sRenderedTileData>)));
+	connect(renderJob, &cRenderJob::fullyRenderedTime, this, &cInterface::slotAutoSaveImage);
 
 	cRenderingConfiguration config;
 	config.EnableNetRender();
@@ -864,7 +867,7 @@ void cInterface::CameraDistanceEdited() const
 	SynchronizeInterfaceWindow(mainWindow->ui->dockWidget_navigation, gPar, qInterface::write);
 }
 
-void cInterface::IFSDefaultsDodecahedron(cParameterContainer *parFractal) const
+void cInterface::IFSDefaultsDodecahedron(std::shared_ptr<cParameterContainer> parFractal) const
 {
 	double phi = (1 + sqrt(5.0)) / 2.0;
 	parFractal->Set("IFS_scale", phi * phi);
@@ -881,7 +884,7 @@ void cInterface::IFSDefaultsDodecahedron(cParameterContainer *parFractal) const
 	parFractal->Set("IFS_menger_sponge_mode", false);
 }
 
-void cInterface::IFSDefaultsIcosahedron(cParameterContainer *parFractal) const
+void cInterface::IFSDefaultsIcosahedron(std::shared_ptr<cParameterContainer> parFractal) const
 {
 	double phi = (1 + sqrt(5.0)) / 2.0;
 	parFractal->Set("IFS_scale", 2.0);
@@ -896,7 +899,7 @@ void cInterface::IFSDefaultsIcosahedron(cParameterContainer *parFractal) const
 	parFractal->Set("IFS_menger_sponge_mode", false);
 }
 
-void cInterface::IFSDefaultsOctahedron(cParameterContainer *parFractal)
+void cInterface::IFSDefaultsOctahedron(std::shared_ptr<cParameterContainer> parFractal)
 {
 	parFractal->Set("IFS_scale", 2.0);
 	parFractal->Set("IFS_direction_5", CVector3(1.0, -1.0, 0));
@@ -912,7 +915,7 @@ void cInterface::IFSDefaultsOctahedron(cParameterContainer *parFractal)
 	parFractal->Set("IFS_menger_sponge_mode", false);
 }
 
-void cInterface::IFSDefaultsMengerSponge(cParameterContainer *parFractal)
+void cInterface::IFSDefaultsMengerSponge(std::shared_ptr<cParameterContainer> parFractal)
 {
 	parFractal->Set("IFS_scale", 3.0);
 	parFractal->Set("IFS_direction_5", CVector3(1.0, -1.0, 0));
@@ -928,7 +931,7 @@ void cInterface::IFSDefaultsMengerSponge(cParameterContainer *parFractal)
 	parFractal->Set("IFS_menger_sponge_mode", true);
 }
 
-void cInterface::IFSDefaultsReset(cParameterContainer *parFractal)
+void cInterface::IFSDefaultsReset(std::shared_ptr<cParameterContainer> parFractal)
 {
 	for (int i = 0; i < 9; i++)
 	{
@@ -965,9 +968,9 @@ void cInterface::RefreshMainImage()
 		mainImage->SetImageParameters(imageAdjustments);
 		mainImage->CompileImage();
 
-		mainImage->ConvertTo8bit();
+		mainImage->ConvertTo8bitChar();
 		mainImage->UpdatePreview();
-		mainImage->GetImageWidget()->update();
+		if (mainImage->GetImageWidget()) mainImage->GetImageWidget()->update();
 	}
 	else
 	{
@@ -1026,11 +1029,11 @@ void cInterface::RefreshPostEffects()
 			}
 			else
 			{
-				sParamRender params(gPar);
-				sRenderData data;
-				data.stopRequest = &stopRequest;
-				data.screenRegion = cRegion<int>(0, 0, mainImage->GetWidth(), mainImage->GetHeight());
-				cRenderSSAO rendererSSAO(&params, &data, mainImage);
+				std::shared_ptr<sParamRender> params(new sParamRender(gPar));
+				std::shared_ptr<sRenderData> data(new sRenderData());
+				data->stopRequest = &stopRequest;
+				data->screenRegion = cRegion<int>(0, 0, mainImage->GetWidth(), mainImage->GetHeight());
+				cRenderSSAO rendererSSAO(params, data, mainImage);
 				QObject::connect(&rendererSSAO,
 					SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)), mainWindow,
 					SLOT(slotUpdateProgressAndStatus(const QString &, const QString &, double)));
@@ -1039,9 +1042,9 @@ void cInterface::RefreshPostEffects()
 				rendererSSAO.RenderSSAO();
 
 				mainImage->CompileImage();
-				mainImage->ConvertTo8bit();
+				mainImage->ConvertTo8bitChar();
 				mainImage->UpdatePreview();
-				mainImage->GetImageWidget()->update();
+				if (mainImage->GetImageWidget()) mainImage->GetImageWidget()->update();
 			}
 		}
 
@@ -1076,22 +1079,21 @@ void cInterface::RefreshPostEffects()
 
 		if (gPar->Get<bool>("hdr_blur_enabled"))
 		{
-			cPostEffectHdrBlur *hdrBlur = new cPostEffectHdrBlur(mainImage);
+			std::unique_ptr<cPostEffectHdrBlur> hdrBlur(new cPostEffectHdrBlur(mainImage));
 			double blurRadius = gPar->Get<double>("hdr_blur_radius");
 			double blurIntensity = gPar->Get<double>("hdr_blur_intensity");
 			hdrBlur->SetParameters(blurRadius, blurIntensity);
-			QObject::connect(hdrBlur,
+			QObject::connect(hdrBlur.get(),
 				SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)), mainWindow,
 				SLOT(slotUpdateProgressAndStatus(const QString &, const QString &, double)));
 			hdrBlur->Render(&stopRequest);
-			delete hdrBlur;
 		}
 
 		mainImage->CompileImage();
 
-		mainImage->ConvertTo8bit();
+		mainImage->ConvertTo8bitChar();
 		mainImage->UpdatePreview();
-		mainImage->GetImageWidget()->update();
+		if (mainImage->GetImageWidget()) mainImage->GetImageWidget()->update();
 	}
 	else
 	{
@@ -1116,17 +1118,60 @@ void cInterface::AutoFog() const
 	SynchronizeInterface(gPar, gParFractal, qInterface::write);
 }
 
-double cInterface::GetDistanceForPoint(
-	CVector3 point, cParameterContainer *par, cFractalContainer *parFractal)
+double cInterface::GetDistanceForPoint(CVector3 point, std::shared_ptr<cParameterContainer> par,
+	std::shared_ptr<cFractalContainer> parFractal)
 {
-	sParamRender *params = new sParamRender(par);
-	cNineFractals *fractals = new cNineFractals(parFractal, par);
+	std::shared_ptr<sParamRender> params(new sParamRender(par));
+	std::shared_ptr<cNineFractals> fractals(new cNineFractals(parFractal, par));
 	sDistanceIn in(point, 0, false);
 	sDistanceOut out;
-	double distance = CalculateDistance(*params, *fractals, in, &out);
-	delete params;
-	delete fractals;
-	return distance;
+
+	bool openClEnabled = false;
+#ifdef USE_OPENCL
+	openClEnabled = par->Get<bool>("opencl_enabled") && parFractal->isUsedCustomFormula();
+
+	if (openClEnabled)
+	{
+		gOpenCl->openClEngineRenderFractal->Lock();
+		gOpenCl->openClEngineRenderFractal->SetDistanceMode();
+		gOpenCl->openClEngineRenderFractal->SetParameters(
+			par, parFractal, params, fractals, nullptr, false);
+		if (gOpenCl->openClEngineRenderFractal->LoadSourcesAndCompile(par))
+		{
+			gOpenCl->openClEngineRenderFractal->CreateKernel4Program(par);
+			gOpenCl->openClEngineRenderFractal->PreAllocateBuffers(par);
+			gOpenCl->openClEngineRenderFractal->CreateCommandQueue();
+		}
+		else
+		{
+			gOpenCl->openClEngineRenderFractal->ReleaseMemory();
+			gOpenCl->openClEngineRenderFractal->Unlock();
+			return 0.0;
+		}
+	}
+#endif
+
+	double dist;
+	if (openClEnabled)
+	{
+#ifdef USE_OPENCL
+		dist = gOpenCl->openClEngineRenderFractal->CalculateDistance(point);
+#endif
+	}
+	else
+	{
+		dist = CalculateDistance(*params, *fractals, in, &out);
+	}
+
+#ifdef USE_OPENCL
+	if (openClEnabled)
+	{
+		gOpenCl->openClEngineRenderFractal->ReleaseMemory();
+		gOpenCl->openClEngineRenderFractal->Unlock();
+	}
+#endif
+
+	return dist;
 }
 
 double cInterface::GetDistanceForPoint(CVector3 point) const
@@ -1290,7 +1335,7 @@ void cInterface::SetByMouse(
 					double DOF = depth;
 					gPar->Set("DOF_focus", DOF);
 					mainWindow->ui->widgetEffects->SynchronizeInterfaceDOFEnabled(gPar);
-					gUndo.Store(gPar, gParFractal);
+					gUndo->Store(gPar, gParFractal);
 					RefreshPostEffects();
 					ReEnablePeriodicRefresh();
 					break;
@@ -1359,7 +1404,9 @@ void cInterface::SetByMouse(
 					CVector3 oldPoint = gPar->Get<CVector3>("meas_point");
 					double distanceFromLast = (point - oldPoint).Length();
 					double distanceFromCamera = (point - camera).Length();
+					CVector3 midPoint = 0.5 * (point + oldPoint);
 					gPar->Set("meas_point", point);
+					gPar->Set("meas_midpoint", midPoint);
 					gPar->Set("meas_distance_from_last", distanceFromLast);
 					gPar->Set("meas_distance_from_camera", distanceFromCamera);
 					SynchronizeInterfaceWindow(
@@ -1683,7 +1730,7 @@ void cInterface::Undo()
 	bool refreshKeyframes = false;
 	DisablePeriodicRefresh();
 	gInterfaceReadyForSynchronization = false;
-	if (gUndo.Undo(gPar, gParFractal, gAnimFrames, gKeyframes, &refreshFrames, &refreshKeyframes))
+	if (gUndo->Undo(gPar, gParFractal, gAnimFrames, gKeyframes, &refreshFrames, &refreshKeyframes))
 	{
 		RebuildPrimitives(gPar);
 		materialListModel->Regenerate();
@@ -1703,7 +1750,7 @@ void cInterface::Redo()
 	bool refreshKeyframes = false;
 	DisablePeriodicRefresh();
 	gInterfaceReadyForSynchronization = false;
-	if (gUndo.Redo(gPar, gParFractal, gAnimFrames, gKeyframes, &refreshFrames, &refreshKeyframes))
+	if (gUndo->Redo(gPar, gParFractal, gAnimFrames, gKeyframes, &refreshFrames, &refreshKeyframes))
 	{
 		RebuildPrimitives(gPar);
 		materialListModel->Regenerate();
@@ -1738,8 +1785,33 @@ void cInterface::ResetView()
 	// calculate size of the fractal in random directions
 	double maxDist = 0.0;
 
-	sParamRender *params = new sParamRender(gPar);
-	cNineFractals *fractals = new cNineFractals(gParFractal, gPar);
+	std::shared_ptr<sParamRender> params(new sParamRender(gPar));
+	std::shared_ptr<cNineFractals> fractals(new cNineFractals(gParFractal, gPar));
+
+	bool openClEnabled = false;
+#ifdef USE_OPENCL
+	openClEnabled = gPar->Get<bool>("opencl_enabled") && gParFractal->isUsedCustomFormula();
+
+	if (openClEnabled)
+	{
+		gOpenCl->openClEngineRenderFractal->Lock();
+		gOpenCl->openClEngineRenderFractal->SetDistanceMode();
+		gOpenCl->openClEngineRenderFractal->SetParameters(
+			gPar, gParFractal, params, fractals, nullptr, false);
+		if (gOpenCl->openClEngineRenderFractal->LoadSourcesAndCompile(gPar))
+		{
+			gOpenCl->openClEngineRenderFractal->CreateKernel4Program(gPar);
+			gOpenCl->openClEngineRenderFractal->PreAllocateBuffers(gPar);
+			gOpenCl->openClEngineRenderFractal->CreateCommandQueue();
+		}
+		else
+		{
+			gOpenCl->openClEngineRenderFractal->ReleaseMemory();
+			gOpenCl->openClEngineRenderFractal->Unlock();
+			return;
+		}
+	}
+#endif
 
 	for (int i = 0; i < 100; i++)
 	{
@@ -1756,7 +1828,18 @@ void cInterface::ResetView()
 			CVector3 point = direction * scan;
 			sDistanceIn in(point, 0, false);
 			sDistanceOut out;
-			double dist = CalculateDistance(*params, *fractals, in, &out);
+
+			double dist;
+			if (openClEnabled)
+			{
+#ifdef USE_OPENCL
+				dist = gOpenCl->openClEngineRenderFractal->CalculateDistance(point);
+#endif
+			}
+			else
+			{
+				dist = CalculateDistance(*params, *fractals, in, &out);
+			}
 			if (dist < 0.1)
 			{
 				break;
@@ -1769,10 +1852,16 @@ void cInterface::ResetView()
 	}
 	cProgressText::ProgressStatusText(
 		QObject::tr("Resetting view"), QObject::tr("Done"), 1.0, cProgressText::progress_IMAGE);
-	delete params;
-	delete fractals;
 
 	double newCameraDist;
+
+#ifdef USE_OPENCL
+	if (openClEnabled)
+	{
+		gOpenCl->openClEngineRenderFractal->ReleaseMemory();
+		gOpenCl->openClEngineRenderFractal->Unlock();
+	}
+#endif
 
 	if (perspType == params::perspThreePoint)
 	{
@@ -1818,6 +1907,7 @@ void cInterface::BoundingBoxMove(char dimension, double moveLower, double moveUp
 			limitMin.z -= moveLower * limitDifference.z;
 			limitMax.z += moveUpper * limitDifference.z;
 			break;
+		default: break;
 	}
 	gPar->Set("limit_min", limitMin);
 	gPar->Set("limit_max", limitMax);
@@ -1838,12 +1928,14 @@ void cInterface::SetBoundingBoxAsLimits(CVector3 outerBoundingMin, CVector3 oute
 
 	SynchronizeInterface(gPar, gParFractal, qInterface::read);
 
-	cParameterContainer parTemp = *gPar;
-	parTemp.Set("limits_enabled", false);
-	parTemp.Set("interior_mode", false);
+	auto parTemp = std::make_shared<cParameterContainer>();
+	*parTemp = *gPar;
 
-	sParamRender *params = new sParamRender(&parTemp);
-	cNineFractals *fractals = new cNineFractals(gParFractal, &parTemp);
+	parTemp->Set("limits_enabled", false);
+	parTemp->Set("interior_mode", false);
+
+	std::shared_ptr<sParamRender> params(new sParamRender(parTemp));
+	std::shared_ptr<cNineFractals> fractals(new cNineFractals(gParFractal, parTemp));
 
 	CVector3 direction;
 	CVector3 orthDirection;
@@ -1858,8 +1950,7 @@ void cInterface::SetBoundingBoxAsLimits(CVector3 outerBoundingMin, CVector3 oute
 	direction = CVector3(1, 0, 0);
 	orthDirection = CVector3(0, 1, 0);
 	point = CVector3(outerBoundingMin.x, boundingCenter.y, boundingCenter.z);
-	dist =
-		CalculateDistanceMinPlane(*params, *fractals, point, direction, orthDirection, &stopRequest);
+	dist = CalculateDistanceMinPlane(params, fractals, point, direction, orthDirection, &stopRequest);
 	double minX = point.x + dist;
 
 	// negative y limit
@@ -1868,8 +1959,7 @@ void cInterface::SetBoundingBoxAsLimits(CVector3 outerBoundingMin, CVector3 oute
 	direction = CVector3(0, 1, 0);
 	orthDirection = CVector3(0, 0, 1);
 	point = CVector3(boundingCenter.x, outerBoundingMin.y, boundingCenter.z);
-	dist =
-		CalculateDistanceMinPlane(*params, *fractals, point, direction, orthDirection, &stopRequest);
+	dist = CalculateDistanceMinPlane(params, fractals, point, direction, orthDirection, &stopRequest);
 	double minY = point.y + dist;
 
 	// negative z limit
@@ -1878,8 +1968,7 @@ void cInterface::SetBoundingBoxAsLimits(CVector3 outerBoundingMin, CVector3 oute
 	direction = CVector3(0, 0, 1);
 	orthDirection = CVector3(1, 0, 0);
 	point = CVector3(boundingCenter.x, boundingCenter.y, outerBoundingMin.z);
-	dist =
-		CalculateDistanceMinPlane(*params, *fractals, point, direction, orthDirection, &stopRequest);
+	dist = CalculateDistanceMinPlane(params, fractals, point, direction, orthDirection, &stopRequest);
 	double minZ = point.z + dist;
 
 	// positive x limit
@@ -1888,8 +1977,7 @@ void cInterface::SetBoundingBoxAsLimits(CVector3 outerBoundingMin, CVector3 oute
 	direction = CVector3(-1, 0, 0);
 	orthDirection = CVector3(0, -1, 0);
 	point = CVector3(outerBoundingMax.x, boundingCenter.y, boundingCenter.z);
-	dist =
-		CalculateDistanceMinPlane(*params, *fractals, point, direction, orthDirection, &stopRequest);
+	dist = CalculateDistanceMinPlane(params, fractals, point, direction, orthDirection, &stopRequest);
 	double maxX = point.x - dist;
 
 	// positive y limit
@@ -1898,8 +1986,7 @@ void cInterface::SetBoundingBoxAsLimits(CVector3 outerBoundingMin, CVector3 oute
 	direction = CVector3(0, -1, 0);
 	orthDirection = CVector3(0, 0, -1);
 	point = CVector3(boundingCenter.x, outerBoundingMax.y, boundingCenter.z);
-	dist =
-		CalculateDistanceMinPlane(*params, *fractals, point, direction, orthDirection, &stopRequest);
+	dist = CalculateDistanceMinPlane(params, fractals, point, direction, orthDirection, &stopRequest);
 	double maxY = point.y - dist;
 
 	// positive z limit
@@ -1908,8 +1995,7 @@ void cInterface::SetBoundingBoxAsLimits(CVector3 outerBoundingMin, CVector3 oute
 	direction = CVector3(0, 0, -1);
 	orthDirection = CVector3(-1, 0, 0);
 	point = CVector3(boundingCenter.x, boundingCenter.y, outerBoundingMax.z);
-	dist =
-		CalculateDistanceMinPlane(*params, *fractals, point, direction, orthDirection, &stopRequest);
+	dist = CalculateDistanceMinPlane(params, fractals, point, direction, orthDirection, &stopRequest);
 	double maxZ = point.z - dist;
 
 	double medX = (maxX + minX) / 2.0;
@@ -1923,15 +2009,13 @@ void cInterface::SetBoundingBoxAsLimits(CVector3 outerBoundingMin, CVector3 oute
 	gPar->Set("limit_max", CVector3(medX + rangeX * 0.6, medY + rangeY * 0.6, medZ + rangeZ * 0.6));
 
 	cProgressText::ProgressStatusText(QObject::tr("bounding box as limit"), QObject::tr("Done"), 1.0);
-	delete params;
-	delete fractals;
 	SynchronizeInterface(gPar, gParFractal, qInterface::write);
 }
 
 void cInterface::NewPrimitive(const QString &primitiveType, int index)
 {
 	QString primitiveName = QString("primitive_") + primitiveType;
-	QString uiFileName = systemData.sharedDir + "formula" + QDir::separator() + "ui"
+	QString uiFileName = systemDirectories.sharedDir + "formula" + QDir::separator() + "ui"
 											 + QDir::separator() + primitiveName + ".ui";
 	fractal::enumObjectType objectType = PrimitiveNameToEnum(primitiveType);
 
@@ -2081,7 +2165,7 @@ void cInterface::DeletePrimitive(const QString &primitiveName)
 	ComboMouseClickUpdate();
 }
 
-void cInterface::RebuildPrimitives(cParameterContainer *par)
+void cInterface::RebuildPrimitives(std::shared_ptr<cParameterContainer> par)
 {
 	// clear all widgets
 	for (const auto &primitiveItem : listOfPrimitives)
@@ -2259,7 +2343,7 @@ bool cInterface::QuitApplicationDialog()
 				gApplication->processEvents();
 			}
 
-			QFile::remove(systemData.GetAutosaveFile());
+			QFile::remove(systemDirectories.GetAutosaveFile());
 
 			if (detachedWindow)
 			{
@@ -2279,7 +2363,7 @@ bool cInterface::QuitApplicationDialog()
 
 void cInterface::AutoRecovery() const
 {
-	if (QFile::exists(systemData.GetAutosaveFile()))
+	if (QFile::exists(systemDirectories.GetAutosaveFile()))
 	{
 		// auto recovery dialog
 		QMessageBox::StandardButton reply;
@@ -2292,7 +2376,7 @@ void cInterface::AutoRecovery() const
 		{
 			cSettings parSettings(cSettings::formatFullText);
 			gInterfaceReadyForSynchronization = false;
-			parSettings.LoadFromFile(systemData.GetAutosaveFile());
+			parSettings.LoadFromFile(systemDirectories.GetAutosaveFile());
 			parSettings.Decode(gPar, gParFractal, gAnimFrames, gKeyframes);
 			gMainInterface->RebuildPrimitives(gPar);
 			materialListModel->Regenerate();
@@ -2375,26 +2459,28 @@ void cInterface::OptimizeStepFactor(double qualityTarget)
 	}
 
 	SynchronizeInterface(gPar, gParFractal, qInterface::read);
-	gUndo.Store(gPar, gParFractal);
+	gUndo->Store(gPar, gParFractal);
 
-	cParameterContainer tempParam = *gPar;
-	cFractalContainer tempFractal = *gParFractal;
+	auto tempParam = std::make_shared<cParameterContainer>();
+	*tempParam = *gPar;
+	auto tempFractal = std::make_shared<cFractalContainer>();
+	*tempFractal = *gParFractal;
 
 	// disabling all slow effects
-	tempParam.Set("shadows_enabled", false);
-	tempParam.Set("ambient_occlusion", false);
-	tempParam.Set("DOF_enabled", false);
-	tempParam.Set("iteration_threshold_mode", false);
-	tempParam.Set("raytraced_reflections", false);
-	tempParam.Set("textured_background", false);
-	tempParam.Set("iteration_fog_enable", false);
-	tempParam.Set("fake_lights_enabled", false);
-	tempParam.Set("main_light_volumetric_enabled", false);
-	tempParam.Set("opencl_mode", 0); // disable OpenCL
+	tempParam->Set("shadows_enabled", false);
+	tempParam->Set("ambient_occlusion", false);
+	tempParam->Set("DOF_enabled", false);
+	tempParam->Set("iteration_threshold_mode", false);
+	tempParam->Set("raytraced_reflections", false);
+	tempParam->Set("textured_background", false);
+	tempParam->Set("iteration_fog_enable", false);
+	tempParam->Set("fake_lights_enabled", false);
+	tempParam->Set("main_light_volumetric_enabled", false);
+	tempParam->Set("opencl_mode", 0); // disable OpenCL
 	for (int i = 1; i <= 4; i++)
 	{
-		tempParam.Set("aux_light_enabled", i, false);
-		tempParam.Set("aux_light_volumetric_enabled", i, false);
+		tempParam->Set("aux_light_enabled", i, false);
+		tempParam->Set("aux_light_volumetric_enabled", i, false);
 	}
 
 	int maxDimension = max(gPar->Get<int>("image_width"), gPar->Get<int>("image_height"));
@@ -2402,19 +2488,19 @@ void cInterface::OptimizeStepFactor(double qualityTarget)
 	int newWidth = double(gPar->Get<int>("image_width")) / maxDimension * 256.0;
 	int newHeight = double(gPar->Get<int>("image_height")) / maxDimension * 256.0;
 
-	tempParam.Set("image_width", newWidth);
-	tempParam.Set("image_height", newHeight);
-	tempParam.Set("detail_level", 4.0);
+	tempParam->Set("image_width", newWidth);
+	tempParam->Set("image_height", newHeight);
+	tempParam->Set("detail_level", 4.0);
 
 	int scanCount = 0;
 	double DEFactor = 1.0;
 	double step = 1.0;
 
-	cRenderJob *renderJob =
-		new cRenderJob(&tempParam, &tempFractal, mainImage, &stopRequest, renderedImage);
-	QObject::connect(renderJob, SIGNAL(updateStatistics(cStatistics)),
+	std::unique_ptr<cRenderJob> renderJob(
+		new cRenderJob(tempParam, tempFractal, mainImage, &stopRequest, renderedImage));
+	QObject::connect(renderJob.get(), SIGNAL(updateStatistics(cStatistics)),
 		mainWindow->ui->widgetDockStatistics, SLOT(slotUpdateStatistics(cStatistics)));
-	connect(renderJob, SIGNAL(updateImage()), renderedImage, SLOT(update()));
+	connect(renderJob.get(), SIGNAL(updateImage()), renderedImage, SLOT(update()));
 
 	cRenderingConfiguration config;
 	config.DisableRefresh();
@@ -2436,12 +2522,12 @@ void cInterface::OptimizeStepFactor(double qualityTarget)
 	{
 		if (stopRequest || systemData.globalStopRequest) return;
 		scanCount++;
-		tempParam.Set("DE_factor", DEFactor);
+		tempParam->Set("DE_factor", DEFactor);
 
 		gPar->Set("DE_factor", DEFactor);
 		SynchronizeInterface(gPar, gParFractal, qInterface::write);
 
-		renderJob->UpdateParameters(&tempParam, &tempFractal);
+		renderJob->UpdateParameters(tempParam, tempFractal);
 		renderJob->Execute();
 		missedDE = renderJob->GetStatistics().GetMissedDEPercentage();
 
@@ -2486,16 +2572,16 @@ void cInterface::OptimizeStepFactor(double qualityTarget)
 		1.0, cProgressText::progress_IMAGE);
 
 	ReEnablePeriodicRefresh();
-
-	delete renderJob;
 }
 
 void cInterface::ResetFormula(int fractalNumber) const
 {
 	SynchronizeInterface(gPar, gParFractal, qInterface::read);
-	gUndo.Store(gPar, gParFractal, gAnimFrames, gKeyframes);
-	cParameterContainer *fractal = &gParFractal->at(fractalNumber);
-	fractal->ResetAllToDefault();
+	gUndo->Store(gPar, gParFractal, gAnimFrames, gKeyframes);
+	std::shared_ptr<cParameterContainer> fractal = gParFractal->at(fractalNumber);
+
+	QStringList exclude = {"formula_code"};
+	fractal->ResetAllToDefault(exclude);
 
 	QStringList listToReset = {"formula_iterations", "formula_weight", "formula_start_iteration",
 		"formula_stop_iteration", "julia_mode", "julia_c", "fractal_constant_factor", "initial_waxis",
@@ -2510,7 +2596,7 @@ void cInterface::ResetFormula(int fractalNumber) const
 		gPar->SetFromOneParameter(listToReset[i] + QString("_%1").arg(fractalNumber + 1), oneParameter);
 	}
 
-	gUndo.Store(gPar, gParFractal, gAnimFrames, gKeyframes);
+	gUndo->Store(gPar, gParFractal, gAnimFrames, gKeyframes);
 	SynchronizeInterface(gPar, gParFractal, qInterface::write);
 }
 
@@ -2856,7 +2942,7 @@ void cInterface::ResetLocalSettings(const QWidget *widget)
 		const QString containerName = fullParameterName.left(firstUnderscore);
 		const QString parameterName = fullParameterName.mid(firstUnderscore + 1);
 
-		cParameterContainer *container = nullptr;
+		std::shared_ptr<cParameterContainer> container = nullptr;
 		if (containerName == "main")
 		{
 			container = gPar;
@@ -2866,7 +2952,7 @@ void cInterface::ResetLocalSettings(const QWidget *widget)
 			const int index = containerName.rightRef(1).toInt();
 			if (index < 4)
 			{
-				container = &gParFractal->at(index);
+				container = gParFractal->at(index);
 			}
 		}
 
@@ -2880,9 +2966,17 @@ void cInterface::ResetLocalSettings(const QWidget *widget)
 	SynchronizeInterface(gPar, gParFractal, qInterface::write);
 }
 
-QStringList cInterface::CreateListOfParametersInWidget(const QWidget *widget)
+void cInterface::RandomizeLocalSettings(const QWidget *widget)
 {
-	QList<QWidget *> listOfWidgets = widget->findChildren<QWidget *>();
+	cRandomizerDialog *randomizer = new cRandomizerDialog();
+	randomizer->setAttribute(Qt::WA_DeleteOnClose);
+	randomizer->AssignSourceWidget(widget);
+	randomizer->show();
+}
+
+QStringList cInterface::CreateListOfParametersInWidget(const QWidget *inputWidget)
+{
+	QList<QWidget *> listOfWidgets = inputWidget->findChildren<QWidget *>();
 	QSet<QString> listOfParameters;
 
 	foreach (QWidget *widget, listOfWidgets)
@@ -2921,4 +3015,33 @@ void cInterface::ResetGlobalStopRequest()
 	}
 
 	systemData.globalStopRequest = false;
+}
+
+void cInterface::CleanSettings()
+{
+	if (QMessageBox::Yes
+			== QMessageBox::question(mainWindow, tr("Cleaning up"),
+					 tr("Do you want to clean up settings?\nIt will take a while"),
+					 QMessageBox::Yes | QMessageBox::No))
+	{
+		SynchronizeInterface(gPar, gParFractal, qInterface::read);
+		gUndo->Store(gPar, gParFractal);
+		gUndo->Store(gPar, gParFractal);
+		cSettingsCleaner *cleaner = new cSettingsCleaner(mainWindow);
+		cleaner->show();
+		cleaner->runCleaner();
+		cleaner->exec();
+		delete cleaner;
+		SynchronizeInterface(gPar, gParFractal, qInterface::write);
+	}
+}
+
+void cInterface::slotAutoSaveImage(double timeSeconds)
+{
+	if (timeSeconds > 600)
+	{
+		QString filename = systemDirectories.GetImagesFolder() + QDir::separator() + "autosave.png";
+		SaveImage(filename, ImageFileSave::IMAGE_FILE_TYPE_PNG, gMainInterface->mainImage, nullptr);
+		mainWindow->ui->statusbar->showMessage(tr("Image auto-saved to %1").arg(filename), 0);
+	}
 }

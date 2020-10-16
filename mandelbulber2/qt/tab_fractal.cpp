@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -39,16 +39,19 @@
 
 #include "ui_tab_fractal.h"
 
+#include "custom_formula_editor.h"
 #include "dock_fractal.h"
 
 #include "src/automated_widgets.hpp"
 #include "src/error_message.hpp"
 #include "src/fractal_container.hpp"
-#include "src/fractal_list.hpp"
 #include "src/initparameters.hpp"
 #include "src/interface.hpp"
 #include "src/my_ui_loader.h"
 #include "src/render_window.hpp"
+#include "src/write_log.hpp"
+
+#include "formula/definition/all_fractal_list.hpp"
 
 cTabFractal::cTabFractal(QWidget *parent) : QWidget(parent), ui(new Ui::cTabFractal)
 {
@@ -57,13 +60,11 @@ cTabFractal::cTabFractal(QWidget *parent) : QWidget(parent), ui(new Ui::cTabFrac
 	// automatedWidgets->ConnectSignalsForSlidersInWindow(this);
 	ConnectSignals();
 
-	fractalWidget = nullptr;
 	tabIndex = 0;
 }
 
 cTabFractal::~cTabFractal()
 {
-	if (fractalWidget) delete fractalWidget;
 	delete ui;
 }
 
@@ -109,9 +110,11 @@ void cTabFractal::Init(bool firstTab, int _tabIndex)
 	insertHeader << QPair<int, QString>(fractal::aboxMod1, QObject::tr("Linear DE"));
 	insertHeader << QPair<int, QString>(fractal::josKleinian, QObject::tr("JosLeys-Kleinian DE"));
 	insertHeader << QPair<int, QString>(fractal::pseudoKleinian, QObject::tr("Pseudo Kleinian DE"));
-	insertHeader << QPair<int, QString>(fractal::dIFSBoxV1, QObject::tr("In Formula DE - dIFS Formulas"));
-	insertHeader << QPair<int, QString>(fractal::transfDIFSBox, QObject::tr("In Formula DE - dIFS Transforms"));
-	insertHeader << QPair<int, QString>(fractal::koch, QObject::tr("In Formula DE - non-dIFS formulas"));
+	insertHeader << QPair<int, QString>(fractal::dIFSBoxV1, QObject::tr("Custom DE - dIFS Formulas"));
+	insertHeader << QPair<int, QString>(
+		fractal::transfDIFSBox, QObject::tr("Custom DE - dIFS Transforms"));
+	insertHeader << QPair<int, QString>(
+		fractal::foldCutCube, QObject::tr("Custom DE - non-dIFS formulas"));
 
 	insertHeader << QPair<int, QString>(
 		fractal::aexionOctopusMod, QObject::tr("*** Formulas with delta-DE ***"));
@@ -127,7 +130,7 @@ void cTabFractal::Init(bool firstTab, int _tabIndex)
 	insertHeader << QPair<int, QString>(fractal::testing, QObject::tr("*** Experimental ***"));
 
 	ui->comboBox_formula->populateItemsFromFractalList(
-		fractalList, insertHeader, gPar->Get<int>("ui_colorize_random_seed"));
+		newFractalList, insertHeader, gPar->Get<int>("ui_colorize_random_seed"));
 
 	connect(ui->comboBox_formula, SIGNAL(currentIndexChanged(int)), this,
 		SLOT(slotChangedComboFractal(int)));
@@ -153,34 +156,49 @@ void cTabFractal::slotChangedComboFractal(int indexInComboBox)
 	QString comboName = sender()->objectName();
 	int index = qobject_cast<QComboBox *>(sender())->itemData(indexInComboBox).toInt();
 
-	QString fullFormulaName = fractalList[index].nameInComboBox;
-	if (fractalList[index].internalID > 0)
+	QString fullFormulaName = newFractalList[index]->getNameInComboBox();
+	if (newFractalList[index]->getInternalId() > 0)
 	{
-		QString formulaName = fractalList[index].internalName;
-		QString uiFilename = fractalList[index].getUiFilename();
+		QString formulaName = newFractalList[index]->getInternalName();
+		QString uiFilename = newFractalList[index]->getUiFilename();
 
-		if (fractalWidget) delete fractalWidget;
-		fractalWidget = nullptr;
+		bool widgetLoaded = false;
 
-		MyUiLoader loader;
-		QFile uiFile(uiFilename);
-
-		if (uiFile.exists())
+		if (formulaName == "custom")
 		{
-			uiFile.open(QFile::ReadOnly);
-			fractalWidget = loader.load(&uiFile);
+			fractalWidget.reset(new cCustomFormulaEditor());
+			dynamic_cast<cCustomFormulaEditor *>(fractalWidget.get())->AssignSlot(tabIndex);
+			widgetLoaded = true;
+		}
+		else
+		{
+			MyUiLoader loader;
+			QFile uiFile(uiFilename);
+
+			if (uiFile.exists())
+			{
+				uiFile.open(QFile::ReadOnly);
+				fractalWidget.reset(loader.load(&uiFile));
+
+				uiFile.close();
+				widgetLoaded = true;
+			}
+		}
+
+		if (widgetLoaded)
+		{
 			QVBoxLayout *layout = ui->verticalLayout_fractal;
-			layout->addWidget(fractalWidget);
-			uiFile.close();
+			layout->addWidget(fractalWidget.get());
 
 			if (gPar->Get<bool>("ui_colorize"))
-				cInterface::ColorizeGroupBoxes(fractalWidget, gPar->Get<int>("ui_colorize_random_seed"));
+				cInterface::ColorizeGroupBoxes(
+					fractalWidget.get(), gPar->Get<int>("ui_colorize_random_seed"));
 
 			fractalWidget->show();
-			automatedWidgets->ConnectSignalsForSlidersInWindow(fractalWidget);
-			SynchronizeInterfaceWindow(fractalWidget, &gParFractal->at(tabIndex), qInterface::write);
+			automatedWidgets->ConnectSignalsForSlidersInWindow(fractalWidget.get());
+			SynchronizeInterfaceWindow(fractalWidget.get(), gParFractal->at(tabIndex), qInterface::write);
 
-			switch (fractalList[index].cpixelAddition)
+			switch (newFractalList[index]->getCpixelAddition())
 			{
 				case fractal::cpixelEnabledByDefault:
 					ui->checkBox_dont_add_c_constant->setText(QObject::tr("Don't add global C constant"));
@@ -209,7 +227,7 @@ void cTabFractal::slotChangedComboFractal(int indexInComboBox)
 				}
 			};
 
-			fractal::enumCPixelAddition cPixelAddition = fractalList[index].cpixelAddition;
+			fractal::enumCPixelAddition cPixelAddition = newFractalList[index]->getCpixelAddition();
 			bool booleanState =
 				gMainInterface->mainWindow->GetWidgetDockFractal()->AreBooleanFractalsEnabled();
 
@@ -218,7 +236,7 @@ void cTabFractal::slotChangedComboFractal(int indexInComboBox)
 			else
 				CConstantAdditionSetVisible(booleanState);
 
-			if (fractalList[index].internalID == fractal::kaleidoscopicIfs)
+			if (newFractalList[index]->getInternalId() == fractal::kaleidoscopicIfs)
 			{
 				QWidget *pushButton_preset_dodecahedron =
 					fractalWidget->findChild<QWidget *>("pushButton_preset_dodecahedron");
@@ -251,8 +269,7 @@ void cTabFractal::slotChangedComboFractal(int indexInComboBox)
 	}
 	else
 	{
-		if (fractalWidget) delete fractalWidget;
-		fractalWidget = nullptr;
+		fractalWidget.reset();
 	}
 
 	gMainInterface->mainWindow->GetWidgetDockFractal()->SetTabText(
@@ -275,7 +292,7 @@ void cTabFractal::CConstantAdditionSetVisible(bool visible) const
 }
 
 void cTabFractal::SynchronizeInterface(
-	cParameterContainer *par, qInterface::enumReadWrite mode) const
+	std::shared_ptr<cParameterContainer> par, qInterface::enumReadWrite mode) const
 {
 	WriteLog("cTabFractal::SynchronizeInterface: frame_iterations_formula", 3);
 	SynchronizeInterfaceWindow(ui->frame_iterations_formula, par, mode);
@@ -316,44 +333,44 @@ void cTabFractal::FrameIterationFormulaSetEnabled(bool enabled) const
 }
 
 void cTabFractal::SynchronizeFractal(
-	cParameterContainer *fractal, qInterface::enumReadWrite mode) const
+	std::shared_ptr<cParameterContainer> fractal, qInterface::enumReadWrite mode) const
 {
-	SynchronizeInterfaceWindow(fractalWidget, fractal, mode);
+	SynchronizeInterfaceWindow(fractalWidget.get(), fractal, mode);
 }
 
 void cTabFractal::slotPressedButtonIFSDefaultsDodecahedron() const
 {
-	SynchronizeInterfaceWindow(fractalWidget, &gParFractal->at(tabIndex), qInterface::read);
-	gMainInterface->IFSDefaultsDodecahedron(&gParFractal->at(tabIndex));
-	SynchronizeInterfaceWindow(fractalWidget, &gParFractal->at(tabIndex), qInterface::write);
+	SynchronizeInterfaceWindow(fractalWidget.get(), gParFractal->at(tabIndex), qInterface::read);
+	gMainInterface->IFSDefaultsDodecahedron(gParFractal->at(tabIndex));
+	SynchronizeInterfaceWindow(fractalWidget.get(), gParFractal->at(tabIndex), qInterface::write);
 }
 
 void cTabFractal::slotPressedButtonIFSDefaultsIcosahedron() const
 {
-	SynchronizeInterfaceWindow(fractalWidget, &gParFractal->at(tabIndex), qInterface::read);
-	gMainInterface->IFSDefaultsIcosahedron(&gParFractal->at(tabIndex));
-	SynchronizeInterfaceWindow(fractalWidget, &gParFractal->at(tabIndex), qInterface::write);
+	SynchronizeInterfaceWindow(fractalWidget.get(), gParFractal->at(tabIndex), qInterface::read);
+	gMainInterface->IFSDefaultsIcosahedron(gParFractal->at(tabIndex));
+	SynchronizeInterfaceWindow(fractalWidget.get(), gParFractal->at(tabIndex), qInterface::write);
 }
 
 void cTabFractal::slotPressedButtonIFSDefaultsOctahedron() const
 {
-	SynchronizeInterfaceWindow(fractalWidget, &gParFractal->at(tabIndex), qInterface::read);
-	gMainInterface->IFSDefaultsOctahedron(&gParFractal->at(tabIndex));
-	SynchronizeInterfaceWindow(fractalWidget, &gParFractal->at(tabIndex), qInterface::write);
+	SynchronizeInterfaceWindow(fractalWidget.get(), gParFractal->at(tabIndex), qInterface::read);
+	gMainInterface->IFSDefaultsOctahedron(gParFractal->at(tabIndex));
+	SynchronizeInterfaceWindow(fractalWidget.get(), gParFractal->at(tabIndex), qInterface::write);
 }
 
 void cTabFractal::slotPressedButtonIFSDefaultsMengerSponge() const
 {
-	SynchronizeInterfaceWindow(fractalWidget, &gParFractal->at(tabIndex), qInterface::read);
-	gMainInterface->IFSDefaultsMengerSponge(&gParFractal->at(tabIndex));
-	SynchronizeInterfaceWindow(fractalWidget, &gParFractal->at(tabIndex), qInterface::write);
+	SynchronizeInterfaceWindow(fractalWidget.get(), gParFractal->at(tabIndex), qInterface::read);
+	gMainInterface->IFSDefaultsMengerSponge(gParFractal->at(tabIndex));
+	SynchronizeInterfaceWindow(fractalWidget.get(), gParFractal->at(tabIndex), qInterface::write);
 }
 
 void cTabFractal::slotPressedButtonIFSDefaultsReset() const
 {
-	SynchronizeInterfaceWindow(fractalWidget, &gParFractal->at(tabIndex), qInterface::read);
-	gMainInterface->IFSDefaultsReset(&gParFractal->at(tabIndex));
-	SynchronizeInterfaceWindow(fractalWidget, &gParFractal->at(tabIndex), qInterface::write);
+	SynchronizeInterfaceWindow(fractalWidget.get(), gParFractal->at(tabIndex), qInterface::read);
+	gMainInterface->IFSDefaultsReset(gParFractal->at(tabIndex));
+	SynchronizeInterfaceWindow(fractalWidget.get(), gParFractal->at(tabIndex), qInterface::write);
 }
 
 void cTabFractal::slotPressedButtonResetFormula() const

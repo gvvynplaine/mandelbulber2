@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-17 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,7 +35,10 @@
 #ifndef MANDELBULBER2_SRC_THUMBNAIL_HPP_
 #define MANDELBULBER2_SRC_THUMBNAIL_HPP_
 
-#include <QtCore>
+#include <memory>
+
+#include <QPixmap>
+#include <QString>
 
 // forward declarations
 class cParameterContainer;
@@ -45,17 +48,17 @@ class cImage;
 class cThumbnail
 {
 public:
-	cThumbnail(const cParameterContainer *_params, const cFractalContainer *_fractal, int _width,
-		int _height, QString _hash);
+	cThumbnail(const std::shared_ptr<cParameterContainer> _params,
+		const std::shared_ptr<cFractalContainer> _fractal, int _width, int _height, QString _hash);
 	~cThumbnail();
 	void AssignWidget(QWidget *widget) { qWidget = widget; }
 	QPixmap Render();
 	void Save(QString filename) const;
 
 private:
-	cImage *image;
-	const cParameterContainer *params;
-	const cFractalContainer *fractal;
+	std::shared_ptr<cImage> image;
+	const std::shared_ptr<cParameterContainer> params;
+	const std::shared_ptr<cFractalContainer> fractal;
 	QWidget *qWidget;
 	const int width;
 	const int height;

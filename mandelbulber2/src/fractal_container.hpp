@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-16 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,21 +35,29 @@
 #ifndef MANDELBULBER2_SRC_FRACTAL_CONTAINER_HPP_
 #define MANDELBULBER2_SRC_FRACTAL_CONTAINER_HPP_
 
+#include <memory>
+#include <vector>
+
 #include "fractal_enums.h"
 #include "parameters.hpp"
 
 class cFractalContainer
 {
 public:
-	cParameterContainer &operator[](int index);
-	const cParameterContainer &operator[](int index) const;
-	cParameterContainer &at(int index);
-	const cParameterContainer &at(int index) const;
+	cFractalContainer();
+	cFractalContainer(const cFractalContainer &other);
+	cFractalContainer &operator=(const cFractalContainer &other);
+
+	std::shared_ptr<cParameterContainer> operator[](int index);
+	const std::shared_ptr<cParameterContainer> operator[](int index) const;
+	std::shared_ptr<cParameterContainer> at(int index);
+	const std::shared_ptr<cParameterContainer> at(int index) const;
+	bool isUsedCustomFormula();
 
 private:
-	cParameterContainer fractals[NUMBER_OF_FRACTALS];
+	std::vector<std::shared_ptr<cParameterContainer>> fractals;
 };
 
-extern cFractalContainer *gParFractal;
+extern std::shared_ptr<cFractalContainer> gParFractal;
 
 #endif /* MANDELBULBER2_SRC_FRACTAL_CONTAINER_HPP_ */

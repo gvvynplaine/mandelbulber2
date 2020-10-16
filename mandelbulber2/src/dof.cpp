@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,16 +35,17 @@
 #include "dof.hpp"
 
 #include <algorithm>
+#include <vector>
 
 #include "common_math.h"
 #include "global_data.hpp"
 #include "progress_text.hpp"
-#include "system.hpp"
+#include "system_data.hpp"
 
 using std::max;
 using std::min;
 
-cPostRenderingDOF::cPostRenderingDOF(cImage *_image) : QObject(), image(_image) {}
+cPostRenderingDOF::cPostRenderingDOF(std::shared_ptr<cImage> _image) : QObject(), image(_image) {}
 
 void cPostRenderingDOF::Render(cRegion<int> screenRegion, float deep, float neutral,
 	int numberOfPasses, float blurOpacity, float maxRadius, bool *stopRequest)
@@ -52,10 +53,10 @@ void cPostRenderingDOF::Render(cRegion<int> screenRegion, float deep, float neut
 	quint64 imageWidth = image->GetWidth();
 	quint64 imageHeight = image->GetHeight();
 
-	sRGBFloat *temp_image = new sRGBFloat[quint64(imageWidth) * quint64(imageHeight)];
-	unsigned short *temp_alpha = new unsigned short[quint64(imageWidth) * quint64(imageHeight)];
+	std::vector<sRGBFloat> temp_image(quint64(imageWidth) * quint64(imageHeight));
+	std::vector<unsigned short> temp_alpha(quint64(imageWidth) * quint64(imageHeight));
 	quint64 sortBufferSize = quint64(screenRegion.height) * quint64(screenRegion.width);
-	sSortZ<float> *temp_sort = new sSortZ<float>[sortBufferSize];
+	std::vector<sSortZ<float>> temp_sort(sortBufferSize);
 
 	{
 		quint64 index = 0;
@@ -194,7 +195,7 @@ void cPostRenderingDOF::Render(cRegion<int> screenRegion, float deep, float neut
 		image->CompileImage();
 		if (image->IsPreview())
 		{
-			image->ConvertTo8bit();
+			image->ConvertTo8bitChar();
 			image->UpdatePreview();
 			emit updateImage();
 		}
@@ -207,7 +208,7 @@ void cPostRenderingDOF::Render(cRegion<int> screenRegion, float deep, float neut
 			statusText, QObject::tr("Sorting zBuffer"), 1.0 / (numberOfPasses + 1.0));
 		gApplication->processEvents();
 
-		QuickSortZBuffer(temp_sort, 1, sortBufferSize - 1);
+		QuickSortZBuffer(temp_sort.data(), 1, sortBufferSize - 1);
 
 		for (int pass = 0; pass < numberOfPasses; pass++)
 		{
@@ -340,7 +341,7 @@ void cPostRenderingDOF::Render(cRegion<int> screenRegion, float deep, float neut
 					timerRefresh.restart();
 
 					image->CompileImage();
-					image->ConvertTo8bit();
+					image->ConvertTo8bitChar();
 					image->UpdatePreview();
 					emit updateImage();
 
@@ -356,9 +357,6 @@ void cPostRenderingDOF::Render(cRegion<int> screenRegion, float deep, float neut
 	catch (QString &status)
 	{
 		emit updateProgressAndStatus(statusText, status, 1.0);
-		delete[] temp_image;
-		delete[] temp_alpha;
-		delete[] temp_sort;
 	}
 }
 

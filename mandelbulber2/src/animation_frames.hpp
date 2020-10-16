@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -38,9 +38,10 @@
 #ifndef MANDELBULBER2_SRC_ANIMATION_FRAMES_HPP_
 #define MANDELBULBER2_SRC_ANIMATION_FRAMES_HPP_
 
+#include <memory>
 #include <utility>
 
-#include <QtGui>
+#include <QImage>
 
 #include "audio_track_collection.h"
 #include "parameters.hpp"
@@ -79,25 +80,30 @@ public:
 
 	cAnimationFrames();
 	virtual ~cAnimationFrames();
-	void AddFrame(
-		const cParameterContainer &params, const cFractalContainer &fractal, int index = -1);
+	void AddFrame(const std::shared_ptr<cParameterContainer> params,
+		const std::shared_ptr<cFractalContainer> fractal, int index = -1);
 	void AddFrame(const sAnimationFrame &frame);
 	void ModifyFrame(int index, sAnimationFrame &frame);
-	void GetFrameAndConsolidate(int index, cParameterContainer *params, cFractalContainer *fractal);
+	void GetFrameAndConsolidate(int index, std::shared_ptr<cParameterContainer> params,
+		std::shared_ptr<cFractalContainer> fractal);
 	sAnimationFrame GetFrame(int index) const;
 	int GetNumberOfFrames() const;
 	void Clear();
 	void ClearAll();
 	virtual void AddAnimatedParameter(const QString &parameterName, const cOneParameter &defaultValue,
-		cParameterContainer *params = nullptr);
-	virtual bool AddAnimatedParameter(
-		const QString &fullParameterName, cParameterContainer *param, const cFractalContainer *fractal);
+		std::shared_ptr<cParameterContainer> params = nullptr);
+	virtual bool AddAnimatedParameter(const QString &fullParameterName,
+		std::shared_ptr<cParameterContainer> param, std::shared_ptr<cFractalContainer> fractal);
 	virtual void RemoveAnimatedParameter(const QString &fullParameterName);
 	QList<sParameterDescription> GetListOfUsedParameters() const { return listOfParameters; }
-	static const cParameterContainer *ContainerSelector(
-		QString containerName, const cParameterContainer *params, const cFractalContainer *fractal);
-	static cParameterContainer *ContainerSelector(
-		QString containerName, cParameterContainer *params, cFractalContainer *fractal);
+
+	static std::shared_ptr<const cParameterContainer> ContainerSelector(QString containerName,
+		std::shared_ptr<const cParameterContainer> params,
+		std::shared_ptr<const cFractalContainer> fractal);
+
+	static std::shared_ptr<cParameterContainer> ContainerSelector(QString containerName,
+		std::shared_ptr<cParameterContainer> params, std::shared_ptr<cFractalContainer> fractal);
+
 	void DeleteFrames(int begin, int end);
 	void Override(QList<sAnimationFrame> _frames, QList<sParameterDescription> _listOfParameters)
 	{
@@ -107,30 +113,30 @@ public:
 	QList<sAnimationFrame> GetFrames() const { return frames; }
 	QList<sParameterDescription> GetListOfParameters() const { return listOfParameters; }
 	void SetListOfParametersAndClear(
-		QList<sParameterDescription> _listOfParameters, cParameterContainer *params);
+		QList<sParameterDescription> _listOfParameters, std::shared_ptr<cParameterContainer> params);
 
 	int IndexOnList(QString parameterName, QString containerName);
 
 	void AddAudioParameter(const QString &parameterName, enumVarType paramType,
-		const QString originalContainerName, cParameterContainer *params = nullptr);
+		const QString originalContainerName, std::shared_ptr<cParameterContainer> params = nullptr);
 
 	void RemoveAudioParameter(
-		const sParameterDescription &parameter, cParameterContainer *params = nullptr);
+		const sParameterDescription &parameter, std::shared_ptr<cParameterContainer> params = nullptr);
 
-	void RemoveAllAudioParameters(cParameterContainer *params = nullptr);
-	void LoadAllAudioFiles(cParameterContainer *params = nullptr);
+	void RemoveAllAudioParameters(std::shared_ptr<cParameterContainer> params = nullptr);
+	void LoadAllAudioFiles(std::shared_ptr<cParameterContainer> params = nullptr);
 
-	QSharedPointer<cAudioTrack> GetAudioPtr(const QString fullParameterName) const;
+	std::shared_ptr<cAudioTrack> GetAudioPtr(const QString fullParameterName) const;
 
 	cOneParameter ApplyAudioAnimation(int frame, const cOneParameter &parameter,
-		const QString &parameterName, const cParameterContainer *params) const;
+		const QString &parameterName, const std::shared_ptr<cParameterContainer> params) const;
 
 	template <typename T>
 	T ApplyAudioAnimationOneComponent(int frame, T oldVal, const QString &fullParameterNameWithSuffix,
-		const cParameterContainer *params) const;
+		const std::shared_ptr<cParameterContainer> params) const;
 
-	void RegenerateAudioTracks(cParameterContainer *param);
-	void RefreshAllAudioTracks(cParameterContainer *param);
+	void RegenerateAudioTracks(std::shared_ptr<cParameterContainer> param);
+	void RefreshAllAudioTracks(std::shared_ptr<cParameterContainer> param);
 
 	virtual void setAudioParameterPrefix();
 	static void WipeFramesFromFolder(QString folder);
@@ -141,6 +147,6 @@ protected:
 	cAudioTrackCollection audioTracks;
 };
 
-extern cAnimationFrames *gAnimFrames;
+extern std::shared_ptr<cAnimationFrames> gAnimFrames;
 
 #endif /* MANDELBULBER2_SRC_ANIMATION_FRAMES_HPP_ */

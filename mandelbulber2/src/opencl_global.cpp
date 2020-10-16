@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -43,10 +43,10 @@
 
 cGlobalOpenCl *gOpenCl = nullptr;
 
-cGlobalOpenCl::cGlobalOpenCl()
+cGlobalOpenCl::cGlobalOpenCl(QObject *parent) : QObject(parent)
 {
 #ifdef USE_OPENCL
-	openClHardware = new cOpenClHardware();
+	openClHardware = new cOpenClHardware(this);
 
 	openClEngineRenderFractal = new cOpenClEngineRenderFractal(openClHardware);
 	openClEngineRenderSSAO = new cOpenClEngineRenderSSAO(openClHardware);
@@ -56,11 +56,7 @@ cGlobalOpenCl::cGlobalOpenCl()
 
 cGlobalOpenCl::~cGlobalOpenCl()
 {
-#ifdef USE_OPENCL
-	delete openClEngineRenderFractal;
-	delete openClEngineRenderSSAO;
-	delete openClHardware;
-#endif
+	// all deleted by parent objects
 }
 
 #ifdef USE_OPENCL

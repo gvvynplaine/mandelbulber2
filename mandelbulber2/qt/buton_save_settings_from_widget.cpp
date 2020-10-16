@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,6 +35,7 @@
 #include "buton_save_settings_from_widget.h"
 
 #include "src/interface.hpp"
+#include "src/system_data.hpp"
 
 cButtonSaveSettingsFromWidget::cButtonSaveSettingsFromWidget(QWidget *_parent)
 		: QToolButton(_parent)
@@ -43,8 +44,9 @@ cButtonSaveSettingsFromWidget::cButtonSaveSettingsFromWidget(QWidget *_parent)
 	layout->setContentsMargins(1, 1, 1, 1);
 	setLayout(layout);
 	setIcon(QIcon(":system/icons/document-save.svg"));
-	setIconSize(QSize(16, 16));
-	setMaximumSize(18, 18);
+	int size = int(systemData.GetPreferredThumbnailSize() / 6.0);
+	setIconSize(QSize(size - 2, size - 2));
+	setMaximumSize(size, size);
 	connect(this, SIGNAL(clicked()), this, SLOT(slotPressedButtonLocalSave()));
 
 	QWidget *parentWidget = dynamic_cast<QWidget *>(parent());

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -54,10 +54,10 @@ enum enumDEFunctionType
 	logarithmicDEFunction = 2,
 	pseudoKleinianDEFunction = 3,
 	josKleinianDEFunction = 4,
-	dIFSDEFunction = 5,
+	customDEFunction = 5,
+	maxAxisDEFunction = 6,
 	// testingDEFunction = 6,
-	numberOfDEFunctions = 5, // used to prepare array
-	// numberOfDEFunctions = 5, // used to prepare array
+	numberOfDEFunctions = 6, // used to prepare array
 	withoutDEFunction = 99
 };
 
@@ -85,7 +85,8 @@ enum enumDEAnalyticFunction // DE function for non hybrid fractals
 	analyticFunctionIFS = 3,
 	analyticFunctionPseudoKleinian = 4,
 	analyticFunctionJosKleinian = 5,
-	analyticFunctionDIFS = 6,
+	analyticFunctionCustomDE = 6,
+	analyticFunctionMaxAxis = 7,
 };
 
 enum enumColoringFunction

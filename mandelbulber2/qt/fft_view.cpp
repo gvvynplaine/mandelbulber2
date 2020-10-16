@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,12 +34,16 @@
 
 #include "fft_view.h"
 
+#include <cmath>
+#include <memory>
+
+#include <QApplication>
+#include <QMouseEvent>
 #include <QPainter>
-#include <QtGui>
 
 #include "src/audio_fft_data.h"
 #include "src/audio_track.h"
-#include "src/system.hpp"
+#include "src/write_log.hpp"
 
 cFFTView::cFFTView(QWidget *parent) : QWidget(parent)
 {
@@ -56,7 +60,7 @@ cFFTView::~cFFTView()
 	// nothing needed here
 }
 
-void cFFTView::AssignAudioTrack(const QSharedPointer<cAudioTrack> audiotrack)
+void cFFTView::AssignAudioTrack(const std::shared_ptr<cAudioTrack> audiotrack)
 {
 
 	if (audiotrack && audiotrack->isLoaded())

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,9 +35,11 @@
 #ifndef MANDELBULBER2_SRC_OPENCL_ENGINE_H_
 #define MANDELBULBER2_SRC_OPENCL_ENGINE_H_
 
+#include <memory>
 #include <utility>
 
-#include <QtCore>
+#include <QElapsedTimer>
+#include <QMutex>
 
 #include "error_message.hpp"
 #include "include_header_wrapper.hpp"
@@ -77,10 +79,11 @@ public:
 	void Unlock();
 	static void DeleteKernelCache();
 	void Reset();
-	virtual bool LoadSourcesAndCompile(const cParameterContainer *params) = 0;
-	bool CreateKernel4Program(const cParameterContainer *params);
-	virtual bool PreAllocateBuffers(const cParameterContainer *params);
-	virtual void RegisterInputOutputBuffers(const cParameterContainer *params) = 0;
+	virtual bool LoadSourcesAndCompile(
+		std::shared_ptr<const cParameterContainer> params, QString *compilerErrorOutput = nullptr) = 0;
+	bool CreateKernel4Program(std::shared_ptr<const cParameterContainer> params);
+	virtual bool PreAllocateBuffers(std::shared_ptr<const cParameterContainer> params);
+	virtual void RegisterInputOutputBuffers(std::shared_ptr<const cParameterContainer> params) = 0;
 	bool WriteBuffersToQueue();
 	bool ReadBuffersFromQueue(int deviceIndex);
 	bool CreateCommandQueue();
@@ -98,9 +101,9 @@ public:
 protected:
 	virtual QString GetKernelName() = 0;
 	static bool checkErr(cl_int err, QString functionName);
-	bool Build(const QByteArray &programString, QString *errorText);
+	bool Build(const QByteArray &programString, QString *errorText, bool quiet);
 	bool CreateKernels();
-	void InitOptimalJob(const cParameterContainer *params);
+	void InitOptimalJob(std::shared_ptr<const cParameterContainer> params);
 	void UpdateOptimalJobStart(quint64 pixelsLeft);
 	void UpdateOptimalJobEnd();
 	virtual size_t CalcNeededMemory() = 0;
@@ -110,9 +113,9 @@ protected:
 	QList<listOfBuffers> outputBuffers;					// separate output buffer for each OpenCL device
 	QList<listOfBuffers> inputAndOutputBuffers; // separate input/output buffer for each OpenCL device
 
-	QList<QSharedPointer<cl::Program>> clPrograms;
-	QList<QSharedPointer<cl::Kernel>> clKernels;
-	QList<QSharedPointer<cl::CommandQueue>> clQueues;
+	QList<std::shared_ptr<cl::Program>> clPrograms;
+	QList<std::shared_ptr<cl::Kernel>> clKernels;
+	QList<std::shared_ptr<cl::CommandQueue>> clQueues;
 
 	sOptimalJob optimalJob;
 	bool programsLoaded;

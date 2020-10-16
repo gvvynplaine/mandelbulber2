@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -37,19 +37,16 @@
 #include <qstylefactory.h>
 
 #include <clocale>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <iostream>
 
 #include <QTextStream>
-#include <QtGui>
 
 #include "global_data.hpp"
 #include "initparameters.hpp"
 #include "interface.hpp"
 #include "render_window.hpp"
+#include "system_data.hpp"
+#include "system_directories.hpp"
+#include "write_log.hpp"
 
 // custom includes
 #ifndef _WIN32
@@ -78,10 +75,10 @@ bool InitSystem()
 
 	systemData.globalTimer.start();
 
-	systemData.homeDir = QDir::toNativeSeparators(QDir::homePath() + QDir::separator());
+	systemDirectories.homeDir = QDir::toNativeSeparators(QDir::homePath() + QDir::separator());
 #ifdef _WIN32 /* WINDOWS */
-	systemData.sharedDir = QDir::toNativeSeparators(QDir::currentPath() + QDir::separator());
-	systemData.docDir =
+	systemDirectories.sharedDir = QDir::toNativeSeparators(QDir::currentPath() + QDir::separator());
+	systemDirectories.docDir =
 		QDir::toNativeSeparators(QDir::currentPath() + QDir::separator() + "doc" + QDir::separator());
 #elif SHARED_DIR_IS_APP_DIR
 	/* used for AppImage, which requires fixed data bundled at same location, as the application */
@@ -97,8 +94,8 @@ bool InitSystem()
 #endif
 	out << "sharePath directory: " << sharePath << endl;
 
-	systemData.sharedDir = QDir::toNativeSeparators(sharePath + QDir::separator());
-	systemData.docDir =
+	systemDirectories.sharedDir = QDir::toNativeSeparators(sharePath + QDir::separator());
+	systemDirectories.docDir =
 		QDir::toNativeSeparators(sharePath + QDir::separator() + "doc" + QDir::separator());
 #else //_WIN32
 // if SHARED_DIR is not defined under Linux then use path relative to main executable directory
@@ -112,7 +109,7 @@ bool InitSystem()
 			QDir shareMandelbulber = shareDir;
 			if (shareMandelbulber.cd("mandelbulber2"))
 			{
-				systemData.sharedDir =
+				systemDirectories.sharedDir =
 					QDir::cleanPath(shareMandelbulber.absolutePath()) + QDir::separator();
 				success = true;
 			}
@@ -125,7 +122,7 @@ bool InitSystem()
 			QDir shareDocMandelbulber = shareDir;
 			if (shareDocMandelbulber.cd("doc/mandelbulber2"))
 			{
-				systemData.docDir =
+				systemDirectories.docDir =
 					QDir::cleanPath(shareDocMandelbulber.absolutePath()) + QDir::separator();
 			}
 			else
@@ -151,7 +148,7 @@ bool InitSystem()
 		outErr << "Trying to use /usr/share/mandelbulber2 as program data directory" << endl;
 		if (shareDir.cd("/usr/share/mandelbulber2"))
 		{
-			systemData.sharedDir = QDir::cleanPath(shareDir.absolutePath()) + QDir::separator();
+			systemDirectories.sharedDir = QDir::cleanPath(shareDir.absolutePath()) + QDir::separator();
 		}
 		else
 		{
@@ -162,7 +159,7 @@ bool InitSystem()
 
 		if (shareDir.cd("/usr/share/doc/mandelbulber2"))
 		{
-			systemData.docDir = QDir::cleanPath(shareDir.absolutePath() + QDir::separator());
+			systemDirectories.docDir = QDir::cleanPath(shareDir.absolutePath()) + QDir::separator();
 		}
 		else
 		{
@@ -173,16 +170,16 @@ bool InitSystem()
 	}
 
 #else	// SHARED_DIR
-	systemData.sharedDir = QDir::toNativeSeparators(QString(SHARED_DIR) + QDir::separator());
-	systemData.docDir = QDir::toNativeSeparators(QString(SHARED_DOC_DIR) + QDir::separator());
+	systemDirectories.sharedDir = QDir::toNativeSeparators(QString(SHARED_DIR) + QDir::separator());
+	systemDirectories.docDir = QDir::toNativeSeparators(QString(SHARED_DOC_DIR) + QDir::separator());
 #endif // else SHARED_DIR
 #endif // else _WIN32
 
 // logfile
 #ifdef _WIN32 /* WINDOWS */
-	systemData.logfileName = systemData.homeDir + "mandelbulber_log.txt";
+	systemData.logfileName = systemDirectories.homeDir + "mandelbulber_log.txt";
 #else
-	systemData.logfileName = systemData.homeDir + ".mandelbulber_log.txt";
+	systemData.logfileName = systemDirectories.homeDir + ".mandelbulber_log.txt";
 #endif
 	FILE *logfile = fopen(systemData.logfileName.toLocal8Bit().constData(), "w");
 	if (logfile)
@@ -206,32 +203,34 @@ bool InitSystem()
 
 // data directory location
 #ifdef _WIN32 /* WINDOWS */
-	systemData.SetDataDirectoryHidden(systemData.homeDir + "mandelbulber" + QDir::separator());
-	systemData.SetDataDirectoryPublic(systemData.homeDir + "mandelbulber" + QDir::separator());
+	systemDirectories.SetDataDirectoryHidden(
+		systemDirectories.homeDir + "mandelbulber" + QDir::separator());
+	systemDirectories.SetDataDirectoryPublic(
+		systemDirectories.homeDir + "mandelbulber" + QDir::separator());
 #else
-	systemData.SetDataDirectoryHidden(
-		QDir::toNativeSeparators(systemData.homeDir + ".mandelbulber" + QDir::separator()));
-	systemData.SetDataDirectoryPublic(
-		QDir::toNativeSeparators(systemData.homeDir + "mandelbulber" + QDir::separator()));
+	systemDirectories.SetDataDirectoryHidden(
+		QDir::toNativeSeparators(systemDirectories.homeDir + ".mandelbulber" + QDir::separator()));
+	systemDirectories.SetDataDirectoryPublic(
+		QDir::toNativeSeparators(systemDirectories.homeDir + "mandelbulber" + QDir::separator()));
 #endif
-	out << "Program data files directory " << systemData.sharedDir << endl;
-	out << "Default data hidden directory: " << systemData.GetDataDirectoryHidden() << endl;
-	WriteLogString("Default data hidden directory", systemData.GetDataDirectoryHidden(), 1);
-	out << "Default data public directory: " << systemData.GetDataDirectoryPublic() << endl;
-	WriteLogString("Default data public directory", systemData.GetDataDirectoryPublic(), 1);
+	out << "Program data files directory " << systemDirectories.sharedDir << endl;
+	out << "Default data hidden directory: " << systemDirectories.GetDataDirectoryHidden() << endl;
+	WriteLogString("Default data hidden directory", systemDirectories.GetDataDirectoryHidden(), 1);
+	out << "Default data public directory: " << systemDirectories.GetDataDirectoryPublic() << endl;
+	WriteLogString("Default data public directory", systemDirectories.GetDataDirectoryPublic(), 1);
 
 	//*********** temporary set to false ************
 	systemData.noGui = false;
 	systemData.silent = false;
 
 	systemData.lastSettingsFile = QDir::toNativeSeparators(
-		systemData.GetSettingsFolder() + QDir::separator() + QString("settings.fract"));
+		systemDirectories.GetSettingsFolder() + QDir::separator() + QString("settings.fract"));
 	systemData.lastImageFile = QDir::toNativeSeparators(
-		systemData.GetImagesFolder() + QDir::separator() + QString("image.jpg"));
+		systemDirectories.GetImagesFolder() + QDir::separator() + QString("image.jpg"));
 	systemData.lastImagePaletteFile = QDir::toNativeSeparators(
-		systemData.sharedDir + "textures" + QDir::separator() + QString("colour palette.jpg"));
+		systemDirectories.sharedDir + "textures" + QDir::separator() + QString("colour palette.jpg"));
 	systemData.lastGradientFile = QDir::toNativeSeparators(
-		systemData.GetGradientsFolder() + QDir::separator() + "colors.gradient");
+		systemDirectories.GetGradientsFolder() + QDir::separator() + "colors.gradient");
 
 	QLocale systemLocale = QLocale::system();
 	systemData.decimalPoint = systemLocale.decimalPoint();
@@ -280,91 +279,28 @@ int get_cpu_count()
 	return QThread::idealThreadCount();
 }
 
-void WriteLogCout(const QString &text, int verbosityLevel)
-{
-	// output to console
-	cout << text.toStdString();
-	cout.flush();
-	WriteLog(text, verbosityLevel);
-}
-
-void WriteLog(const QString &text, int verbosityLevel)
-{
-	// verbosity level:
-	// 1 - only errors
-	// 2 - main events / actions
-	// 3 - detailed events / actions
-
-	QMutex mutex;
-
-	if (verbosityLevel <= systemData.loggingVerbosity)
-	{
-		mutex.lock();
-		FILE *logfile = fopen(systemData.logfileName.toLocal8Bit().constData(), "a");
-#ifdef _WIN32
-		QString logText = QString("PID: %1, time: %2, %3\n")
-												.arg(QCoreApplication::applicationPid())
-												.arg(QString::number(clock() / 1.0e3, 'f', 3))
-												.arg(text);
-#else
-		QString logText =
-			QString("PID: %1, time: %2, %3\n")
-				.arg(QCoreApplication::applicationPid())
-				.arg(QString::number((systemData.globalTimer.nsecsElapsed()) / 1.0e9, 'f', 9))
-				.arg(text);
-#endif
-		if (logfile)
-		{
-			fputs(logText.toLocal8Bit().constData(), logfile);
-			fclose(logfile);
-		}
-		mutex.unlock();
-		// write to log in window
-		if (gMainInterface && gMainInterface->mainWindow != nullptr)
-		{
-			emit gMainInterface->mainWindow->AppendToLog(logText);
-		}
-	}
-}
-
-void WriteLogString(const QString &text, const QString &value, int verbosityLevel)
-{
-	WriteLog(text + ", value = " + value, verbosityLevel);
-}
-
-void WriteLogDouble(const QString &text, double value, int verbosityLevel)
-{
-	WriteLog(text + ", value = " + QString::number(value), verbosityLevel);
-}
-
-void WriteLogInt(const QString &text, int value, int verbosityLevel)
-{
-	WriteLog(text + ", value = " + QString::number(value), verbosityLevel);
-}
-
-void WriteLogSizeT(const QString &text, size_t value, int verbosityLevel)
-{
-	WriteLog(text + ", value = " + QString::number(value), verbosityLevel);
-}
-
 bool CreateDefaultFolders()
 {
 	// create data directory if not exists
 	bool result = true;
 
-	result &= CreateFolder(systemData.GetDataDirectoryHidden());
-	result &= CreateFolder(systemData.GetDataDirectoryPublic());
-	result &= CreateFolder(systemData.GetImagesFolder());
-	result &= CreateFolder(systemData.GetThumbnailsFolder());
-	result &= CreateFolder(systemData.GetToolbarFolder());
-	result &= CreateFolder(systemData.GetHttpCacheFolder());
-	result &= CreateFolder(systemData.GetCustomWindowStateFolder());
-	result &= CreateFolder(systemData.GetSettingsFolder());
-	result &= CreateFolder(systemData.GetSlicesFolder());
-	result &= CreateFolder(systemData.GetMaterialsFolder());
-	result &= CreateFolder(systemData.GetAnimationFolder());
-	result &= CreateFolder(systemData.GetNetrenderFolder());
-	result &= CreateFolder(systemData.GetGradientsFolder());
+	result &= CreateFolder(systemDirectories.GetDataDirectoryHidden());
+	result &= CreateFolder(systemDirectories.GetDataDirectoryPublic());
+	result &= CreateFolder(systemDirectories.GetImagesFolder());
+	result &= CreateFolder(systemDirectories.GetThumbnailsFolder());
+	result &= CreateFolder(systemDirectories.GetToolbarFolder());
+	result &= CreateFolder(systemDirectories.GetHttpCacheFolder());
+	result &= CreateFolder(systemDirectories.GetCustomWindowStateFolder());
+	result &= CreateFolder(systemDirectories.GetSettingsFolder());
+	result &= CreateFolder(systemDirectories.GetSlicesFolder());
+	result &= CreateFolder(systemDirectories.GetMaterialsFolder());
+	result &= CreateFolder(systemDirectories.GetAnimationFolder());
+	result &= CreateFolder(systemDirectories.GetNetrenderFolder());
+	result &= CreateFolder(systemDirectories.GetGradientsFolder());
+	result &= CreateFolder(systemDirectories.GetOpenCLTempFolder());
+	result &= CreateFolder(systemDirectories.GetOpenCLCustomFormulasFolder());
+	result &= CreateFolder(systemDirectories.GetUndoFolder());
+	result &= PutClangFormatFileToDataDirectoryHidden();
 
 	RetrieveToolbarPresets(false);
 	RetrieveExampleMaterials(false);
@@ -400,13 +336,13 @@ bool CreateDefaultFolders()
 		QDir::toNativeSeparators(actualFileNames.actualFilenameImage);
 
 	actualFileNames.actualFilenamePalette =
-		systemData.sharedDir + "textures" + QDir::separator() + "colour palette.jpg";
+		systemDirectories.sharedDir + "textures" + QDir::separator() + "colour palette.jpg";
 	actualFileNames.actualFilenamePalette =
 		QDir::toNativeSeparators(actualFileNames.actualFilenamePalette);
 
 	ClearNetRenderCache();
-	DeleteOldChache(systemData.GetThumbnailsFolder(), 90);
-	DeleteOldChache(systemData.GetHttpCacheFolder(), 10);
+	DeleteOldChache(systemDirectories.GetThumbnailsFolder(), 90);
+	DeleteOldChache(systemDirectories.GetHttpCacheFolder(), 10);
 
 	return result;
 }
@@ -464,76 +400,6 @@ void DeleteAllFilesFromDirectory(
 	{
 		WriteLogString("Directory does not exist", folder, 2);
 	}
-}
-
-int fcopy(const QString &source, const QString &dest)
-{
-	// ------ file reading
-
-	char *buffer;
-
-	FILE *pFile = fopen(source.toLocal8Bit().constData(), "rb");
-	if (pFile == nullptr)
-	{
-		qCritical() << "Can't open source file for copying: " << source << endl;
-		WriteLogString("Can't open source file for copying", source, 1);
-		return 1;
-	}
-
-	// obtain file size:
-	fseek(pFile, 0, SEEK_END);
-	const long int lSize = ftell(pFile);
-	rewind(pFile);
-
-	// allocate memory to contain the whole file:
-	if (lSize > 0)
-	{
-		buffer = new char[lSize];
-
-		// copy the file into the buffer:
-		const size_t result = fread(buffer, 1, lSize, pFile);
-		if (result != size_t(lSize))
-		{
-			qCritical() << "Can't read source file for copying: " << source << endl;
-			WriteLogString("Can't read source file for copying", source, 1);
-			delete[] buffer;
-			fclose(pFile);
-			return 2;
-		}
-	}
-	else
-	{
-		qCritical() << "Can't obtain file size: " << source;
-		fclose(pFile);
-		return 4;
-	}
-	fclose(pFile);
-
-	// ----- file writing
-
-	pFile = fopen(dest.toLocal8Bit().constData(), "wb");
-	if (pFile == nullptr)
-	{
-		qCritical() << "Can't open destination file for copying: " << dest << endl;
-		WriteLogString("Can't open destination file for copying", dest, 1);
-		delete[] buffer;
-		return 3;
-	}
-	fwrite(buffer, 1, lSize, pFile);
-	fclose(pFile);
-
-	delete[] buffer;
-	WriteLogString("File copied", dest, 2);
-	return 0;
-}
-
-void Wait(long int time)
-{
-	QMutex dummy;
-	dummy.lock();
-	QWaitCondition waitCondition;
-	waitCondition.wait(&dummy, time);
-	dummy.unlock();
 }
 
 void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QString &msg)
@@ -718,9 +584,10 @@ void UpdateLanguage()
 	}
 
 	WriteLogString("locale", locale, 2);
-	mandelbulberMainTranslator.load(locale, systemData.sharedDir + QDir::separator() + "language");
+	mandelbulberMainTranslator.load(
+		locale, systemDirectories.sharedDir + QDir::separator() + "language");
 	mandelbulberFractalUiTranslator.load(
-		"formula_" + locale, systemData.sharedDir + QDir::separator() + "language");
+		"formula_" + locale, systemDirectories.sharedDir + QDir::separator() + "language");
 
 	WriteLog("Installing translator", 2);
 	QCoreApplication::installTranslator(&mandelbulberMainTranslator);
@@ -738,53 +605,41 @@ void UpdateLanguage()
 
 void RetrieveToolbarPresets(bool force)
 {
-	if (QDir(systemData.GetToolbarFolder())
+	if (QDir(systemDirectories.GetToolbarFolder())
 					.entryInfoList(QDir::NoDotAndDotDot | QDir::AllEntries)
 					.count()
 				== 0
 			|| force)
 	{
 		// first run of program (or all toolbar items deleted) -> copy toolbar presets to working folder
-		QDirIterator toolbarFiles(systemData.sharedDir + "toolbar");
+		QDirIterator toolbarFiles(systemDirectories.sharedDir + "toolbar");
 		while (toolbarFiles.hasNext())
 		{
 			toolbarFiles.next();
 			if (toolbarFiles.fileName() == "." || toolbarFiles.fileName() == "..") continue;
 			fcopy(toolbarFiles.filePath(),
-				systemData.GetToolbarFolder() + QDir::separator() + toolbarFiles.fileName());
+				systemDirectories.GetToolbarFolder() + QDir::separator() + toolbarFiles.fileName());
 		}
 	}
 }
 
 void RetrieveExampleMaterials(bool force)
 {
-	if (QDir(systemData.GetMaterialsFolder())
+	if (QDir(systemDirectories.GetMaterialsFolder())
 					.entryInfoList(QDir::NoDotAndDotDot | QDir::AllEntries)
 					.count()
 				== 0
 			|| force)
 	{
 		// first run of program (or all material items deleted) -> copy materials to working folder
-		QDirIterator materialFiles(systemData.sharedDir + "materials");
+		QDirIterator materialFiles(systemDirectories.sharedDir + "materials");
 		while (materialFiles.hasNext())
 		{
 			materialFiles.next();
 			if (materialFiles.fileName() == "." || materialFiles.fileName() == "..") continue;
 			fcopy(materialFiles.filePath(),
-				systemData.GetMaterialsFolder() + QDir::separator() + materialFiles.fileName());
+				systemDirectories.GetMaterialsFolder() + QDir::separator() + materialFiles.fileName());
 		}
-	}
-}
-
-QThread::Priority GetQThreadPriority(enumRenderingThreadPriority priority)
-{
-	switch (priority)
-	{
-		case renderingPriorityLowest: return QThread::LowestPriority;
-		case renderingPriorityLow: return QThread::LowPriority;
-		case renderingPriorityNormal: return QThread::NormalPriority;
-		case renderingPriorityHigh: return QThread::HighPriority;
-		default: return QThread::NormalPriority;
 	}
 }
 
@@ -809,74 +664,6 @@ void CalcPreferredFontSize(bool noGui)
 	}
 }
 
-QString sSystem::GetIniFile() const
-{
-	double version = MANDELBULBER_VERSION;
-	int versionInt = int(version * 100);
-
-	QString iniFileName = QString("mandelbulber_%1.ini").arg(versionInt);
-	QString fullIniFileName = dataDirectoryHidden + iniFileName;
-
-	// if setting file doesn't exist then look for older files
-	if (!QFile::exists(fullIniFileName))
-	{
-		QString tempFileName;
-		for (int ver = versionInt; ver >= 212; ver--)
-		{
-			if (ver == 212)
-			{
-				tempFileName = QString("mandelbulber.ini");
-			}
-			else
-			{
-				tempFileName = QString("mandelbulber_%1.ini").arg(ver);
-			}
-			if (QFile::exists(dataDirectoryHidden + tempFileName))
-			{
-				fcopy(dataDirectoryHidden + tempFileName, fullIniFileName);
-				WriteLogString("Found older settings file", dataDirectoryHidden + tempFileName, 1);
-				break;
-			}
-		}
-	}
-	return fullIniFileName;
-}
-
-void sSystem::Upgrade() const
-{
-	QStringList moveFolders = {GetSettingsFolder(), GetImagesFolder(), GetSlicesFolder(),
-		GetMaterialsFolder(), GetAnimationFolder()};
-	for (int i = 0; i < moveFolders.size(); i++)
-	{
-		const QString &folderSource = moveFolders.at(i);
-		QString folderTarget = folderSource;
-		folderTarget.replace(dataDirectoryHidden, dataDirectoryPublic);
-		if (QFileInfo::exists(folderTarget))
-		{
-			qCritical() << QString("target folder %1 already exists, won't move!").arg(folderTarget);
-		}
-		else if (!QDir().rename(folderSource, folderTarget))
-		{
-			qCritical() << QString("cannot move folder %1 to %2!").arg(folderSource, folderTarget);
-		}
-	}
-}
-
-QString sSystem::GetImageFileNameSuggestion()
-{
-	QString imageBaseName = QFileInfo(lastImageFile).completeBaseName();
-
-	// if the last image file has been saved manually, this is the suggestion for the filename
-	if (!lastImageFile.endsWith("image.jpg")) return imageBaseName;
-
-	// otherwise if the settings has been loaded from a proper .fract file, this fileName's basename
-	// is the suggestion
-	if (lastSettingsFile.endsWith(".fract")) return QFileInfo(lastSettingsFile).completeBaseName();
-
-	// maybe loaded by clipboard, no better suggestion, than the default lastImageFile's baseName
-	return imageBaseName;
-}
-
 bool IsOutputTty()
 {
 #ifdef _WIN32 /* WINDOWS */
@@ -888,7 +675,7 @@ bool IsOutputTty()
 
 void ClearNetRenderCache()
 {
-	QDir dir(systemData.GetNetrenderFolder());
+	QDir dir(systemDirectories.GetNetrenderFolder());
 	if (dir.exists())
 	{
 		QDirIterator it(dir);
@@ -931,4 +718,82 @@ void DeleteOldChache(const QString &directoryPath, int maxDays)
 		qInfo() << message;
 		WriteLog(message, 2);
 	}
+}
+
+bool PutClangFormatFileToDataDirectoryHidden()
+{
+	QFile file(systemDirectories.GetDataDirectoryHidden() + "/.clang-format");
+	if (file.exists()) return true;
+	if (file.open(QIODevice::WriteOnly))
+	{
+		QTextStream out(&file);
+		out << "---\n"
+					 "Language:        Cpp\n"
+					 "# BasedOnStyle:  LLVM\n"
+					 "AccessModifierOffset: -2\n"
+					 "AlignAfterOpenBracket: false\n"
+					 "AlignEscapedNewlinesLeft: true\n"
+					 "AlignTrailingComments: true\n"
+					 "AlignOperands:   true\n"
+					 "AllowAllParametersOfDeclarationOnNextLine: true\n"
+					 "AllowShortBlocksOnASingleLine: false\n"
+					 "AllowShortCaseLabelsOnASingleLine: true\n"
+					 "AllowShortIfStatementsOnASingleLine: true\n"
+					 "AllowShortLoopsOnASingleLine: false\n"
+					 "AllowShortFunctionsOnASingleLine: Inline\n"
+					 "AlwaysBreakAfterDefinitionReturnType: false\n"
+					 "AlwaysBreakTemplateDeclarations: true\n"
+					 "AlwaysBreakBeforeMultilineStrings: true\n"
+					 "BreakBeforeBinaryOperators: NonAssignment\n"
+					 "BreakBeforeTernaryOperators: true\n"
+					 "BreakConstructorInitializersBeforeComma: false\n"
+					 "BinPackParameters: true\n"
+					 "BinPackArguments: true\n"
+					 "ColumnLimit:     100\n"
+					 "ConstructorInitializerAllOnOneLineOrOnePerLine: true\n"
+					 "ConstructorInitializerIndentWidth: 4\n"
+					 "DerivePointerAlignment: false\n"
+					 "ExperimentalAutoDetectBinPacking: false\n"
+					 "IndentCaseLabels: true\n"
+					 "IndentWrappedFunctionNames: false\n"
+					 "IndentFunctionDeclarationAfterType: false\n"
+					 "MaxEmptyLinesToKeep: 1\n"
+					 "KeepEmptyLinesAtTheStartOfBlocks: true\n"
+					 "NamespaceIndentation: None\n"
+					 "ObjCBlockIndentWidth: 2\n"
+					 "ObjCSpaceAfterProperty: false\n"
+					 "ObjCSpaceBeforeProtocolList: true\n"
+					 "PenaltyBreakBeforeFirstCallParameter: 19\n"
+					 "PenaltyBreakComment: 300\n"
+					 "PenaltyBreakString: 1000\n"
+					 "PenaltyBreakFirstLessLess: 120\n"
+					 "PenaltyExcessCharacter: 1000000\n"
+					 "PenaltyReturnTypeOnItsOwnLine: 60\n"
+					 "PointerAlignment: Right\n"
+					 "SpacesBeforeTrailingComments: 1\n"
+					 "Cpp11BracedListStyle: true\n"
+					 "Standard:        Cpp11\n"
+					 "IndentWidth:     2\n"
+					 "TabWidth:        2\n"
+					 "UseTab:          Always\n"
+					 "BreakBeforeBraces: Allman\n"
+					 "SpacesInParentheses: false\n"
+					 "SpacesInSquareBrackets: false\n"
+					 "SpacesInAngles:  false\n"
+					 "SpaceInEmptyParentheses: false\n"
+					 "SpacesInCStyleCastParentheses: false\n"
+					 "SpaceAfterCStyleCast: false\n"
+					 "SpacesInContainerLiterals: true\n"
+					 "SpaceBeforeAssignmentOperators: true\n"
+					 "ContinuationIndentWidth: 2\n"
+					 "CommentPragmas:  '^ IWYU pragma:'\n"
+					 "ForEachMacros:   [ foreach, Q_FOREACH, BOOST_FOREACH ]\n"
+					 "SpaceBeforeParens: ControlStatements\n"
+					 "DisableFormat:   false\n"
+					 "SortIncludes: false\n"
+					 "...\n";
+		file.close();
+		return true;
+	}
+	return false;
 }

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,27 +34,31 @@
 
 #include "render_ssao.h"
 
+#include <vector>
+
 #include "cimage.hpp"
 #include "fractparams.hpp"
 #include "global_data.hpp"
 #include "progress_text.hpp"
 #include "render_data.hpp"
 #include "ssao_worker.h"
-#include "system.hpp"
+#include "system_data.hpp"
+#include "wait.hpp"
+#include "write_log.hpp"
 
-cRenderSSAO::cRenderSSAO(
-	const sParamRender *_params, const sRenderData *_renderData, cImage *_image)
+cRenderSSAO::cRenderSSAO(std::shared_ptr<const sParamRender> _params,
+	std::shared_ptr<const sRenderData> _renderData, std::shared_ptr<cImage> _image)
 		: QObject()
 {
-	params = _params;
-	data = _renderData;
+	params = _params.get();
+	data = _renderData.get();
 	image = _image;
 	qualityFactor = 1.0;
 	progressive = 0;
 	startLine = data->screenRegion.y1;
 	endLine = data->screenRegion.y2;
 	height = data->screenRegion.height;
-	numberOfThreads = min(data->configuration.GetNumberOfThreads(), height);
+	numberOfThreads = qMin(data->configuration.GetNumberOfThreads(), height);
 	region = data->screenRegion;
 }
 
@@ -69,25 +73,25 @@ void cRenderSSAO::SetRegion(const cRegion<int> &_region)
 	startLine = region.y1;
 	endLine = region.y2;
 	height = region.height;
-	numberOfThreads = min(data->configuration.GetNumberOfThreads(), height);
+	numberOfThreads = qMin(data->configuration.GetNumberOfThreads(), height);
 }
 
 void cRenderSSAO::RenderSSAO(QList<int> *list)
 {
 	WriteLog("cRenderSSAO::RenderSSAO()", 2);
 	// prepare multiple threads
-	QThread **thread = new QThread *[numberOfThreads];
-	cSSAOWorker::sThreadData *threadData = new cSSAOWorker::sThreadData[numberOfThreads];
-	cSSAOWorker **worker = new cSSAOWorker *[numberOfThreads];
+	std::vector<QThread *> thread(numberOfThreads);
+	std::vector<cSSAOWorker::sThreadData> threadData(numberOfThreads);
+	std::vector<cSSAOWorker *> worker(numberOfThreads);
 
 	cProgressText progressText;
 	progressText.ResetTimer();
 
 	// create list of lines to render for each CPU core
-	QList<int> *lists = nullptr;
+	std::vector<QList<int>> lists;
 	if (list)
 	{
-		lists = new QList<int>[numberOfThreads];
+		lists.resize(numberOfThreads);
 		for (int y : *list)
 		{
 			int mod = (y - startLine) % numberOfThreads;
@@ -142,7 +146,7 @@ void cRenderSSAO::RenderSSAO(QList<int> *list)
 		QObject::connect(worker[i], SIGNAL(finished()), worker[i], SLOT(deleteLater()));
 		thread[i]->setObjectName("SSAOWorker #" + QString::number(i));
 		thread[i]->start();
-		thread[i]->setPriority(GetQThreadPriority(systemData.threadsPriority));
+		thread[i]->setPriority(systemData.GetQThreadPriority(systemData.threadsPriority));
 		WriteLog(QString("Thread ") + QString::number(i) + " started", 3);
 	}
 
@@ -203,11 +207,6 @@ void cRenderSSAO::RenderSSAO(QList<int> *list)
 	progressTxt = progressText.getText(percentDone);
 
 	emit updateProgressAndStatus(statusText, progressTxt, percentDone);
-
-	delete[] thread;
-	delete[] threadData;
-	delete[] worker;
-	if (list) delete[] lists;
 
 	WriteLog("cRenderSSAO::RenderSSAO(): memory released", 2);
 

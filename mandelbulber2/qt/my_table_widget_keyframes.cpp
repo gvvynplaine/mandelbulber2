@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2015-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2015-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,10 +34,11 @@
 
 #include "my_table_widget_keyframes.hpp"
 
+#include <memory>
+
 #include <QContextMenuEvent>
 #include <QHeaderView>
 #include <QMenu>
-#include <QtCore>
 
 #include "src/animation_keyframes.hpp"
 
@@ -63,7 +64,7 @@ void MyTableWidgetKeyframes::tableContextMenuRequest(QPoint point) const
 	int row = index.row();
 	int column = index.column();
 
-	QMenu *menu = new QMenu;
+	std::unique_ptr<QMenu> menu(new QMenu);
 
 	QAction *actionRender = nullptr;
 	QAction *interpolateForward = nullptr;
@@ -93,8 +94,6 @@ void MyTableWidgetKeyframes::tableContextMenuRequest(QPoint point) const
 			gKeyframeAnimation->InterpolateForward(row, column);
 		}
 	}
-
-	delete menu;
 }
 
 void MyTableWidgetKeyframes::columnContextMenuRequest(QPoint point) const
@@ -103,7 +102,7 @@ void MyTableWidgetKeyframes::columnContextMenuRequest(QPoint point) const
 
 	if (column >= cKeyframeAnimation::reservedColumns)
 	{
-		QMenu *menu = new QMenu;
+		std::unique_ptr<QMenu> menu(new QMenu);
 
 		QAction *actionRender;
 		QAction *actionDelete;
@@ -136,8 +135,6 @@ void MyTableWidgetKeyframes::columnContextMenuRequest(QPoint point) const
 				gKeyframeAnimation->DeleteFramesTo(column - cKeyframeAnimation::reservedColumns);
 			}
 		}
-
-		delete menu;
 	}
 }
 
@@ -145,7 +142,7 @@ void MyTableWidgetKeyframes::rowContextMenuRequest(QPoint point) const
 {
 	int row = verticalHeader()->logicalIndexAt(point);
 
-	QMenu *menu = new QMenu;
+	std::unique_ptr<QMenu> menu(new QMenu);
 
 	if (row > 0)
 	{
@@ -159,7 +156,7 @@ void MyTableWidgetKeyframes::rowContextMenuRequest(QPoint point) const
 		QAction *actionCatMulRomAngleInterpolation = menu->addAction(tr("CatMulRom angle"));
 		QAction *actionAkimaInterpolation = menu->addAction(tr("Akima"));
 		QAction *actionAkimaAngleInterpolation = menu->addAction(tr("Akima angle"));
-		QActionGroup actionGroupInterpolation(menu);
+		QActionGroup actionGroupInterpolation(menu.get());
 		actionGroupInterpolation.addAction(actionNoInterpolation);
 		actionGroupInterpolation.addAction(actionLinearInterpolation);
 		actionGroupInterpolation.addAction(actionLinearAngleInterpolation);
@@ -229,6 +226,4 @@ void MyTableWidgetKeyframes::rowContextMenuRequest(QPoint point) const
 			}
 		}
 	}
-
-	delete menu;
 }

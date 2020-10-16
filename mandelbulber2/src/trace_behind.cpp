@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,21 +34,51 @@
  * which does not collide with the fractal.
  */
 
+#include "algebra.hpp"
 #include "calculate_distance.hpp"
 #include "fractal_container.hpp"
 #include "fractparams.hpp"
 #include "nine_fractals.hpp"
+#include "opencl_engine_render_fractal.h"
+#include "opencl_global.h"
 #include "parameters.hpp"
+#include "projection_3d.hpp"
 
-double traceBehindFractal(cParameterContainer *params, cFractalContainer *fractals, double maxDist,
-	CVector3 viewVector, double startingDepth, double resolution, double distanceLimit)
+double traceBehindFractal(std::shared_ptr<cParameterContainer> params,
+	std::shared_ptr<cFractalContainer> fractals, double maxDist, CVector3 viewVector,
+	double startingDepth, double resolution, double distanceLimit)
 {
-	sParamRender *paramRender = new sParamRender(params);
-	cNineFractals *nineFractals = new cNineFractals(fractals, params);
+	std::shared_ptr<sParamRender> paramRender(new sParamRender(params));
+	std::shared_ptr<cNineFractals> nineFractals(new cNineFractals(fractals, params));
 	paramRender->resolution = resolution;
 	double totalDistanceBehind = 0.0;
 	double distanceBehind = 0.0;
 	CVector3 point = paramRender->camera + viewVector * startingDepth;
+
+	bool openClEnabled = false;
+#ifdef USE_OPENCL
+	openClEnabled = params->Get<bool>("opencl_enabled") && fractals->isUsedCustomFormula();
+
+	if (openClEnabled)
+	{
+		gOpenCl->openClEngineRenderFractal->Lock();
+		gOpenCl->openClEngineRenderFractal->SetDistanceMode();
+		gOpenCl->openClEngineRenderFractal->SetParameters(
+			params, fractals, paramRender, nineFractals, nullptr, false);
+		if (gOpenCl->openClEngineRenderFractal->LoadSourcesAndCompile(params))
+		{
+			gOpenCl->openClEngineRenderFractal->CreateKernel4Program(params);
+			gOpenCl->openClEngineRenderFractal->PreAllocateBuffers(params);
+			gOpenCl->openClEngineRenderFractal->CreateCommandQueue();
+		}
+		else
+		{
+			gOpenCl->openClEngineRenderFractal->ReleaseMemory();
+			gOpenCl->openClEngineRenderFractal->Unlock();
+			return 0.0;
+		}
+	}
+#endif
 
 	while (totalDistanceBehind < maxDist)
 	{
@@ -65,7 +95,18 @@ double traceBehindFractal(cParameterContainer *params, cFractalContainer *fracta
 
 		const sDistanceIn in(point, 0, false);
 		sDistanceOut out;
-		const double distance = CalculateDistance(*paramRender, *nineFractals, in, &out);
+
+		double distance;
+		if (openClEnabled)
+		{
+#ifdef USE_OPENCL
+			distance = gOpenCl->openClEngineRenderFractal->CalculateDistance(point);
+#endif
+		}
+		else
+		{
+			distance = CalculateDistance(*paramRender, *nineFractals, in, &out);
+		}
 
 		double step = distance;
 		if (step < distThresh)
@@ -87,8 +128,13 @@ double traceBehindFractal(cParameterContainer *params, cFractalContainer *fracta
 		if ((paramRender->camera - point).Length() > distanceLimit) break;
 	}
 
-	delete paramRender;
-	delete nineFractals;
+#ifdef USE_OPENCL
+	if (openClEnabled)
+	{
+		gOpenCl->openClEngineRenderFractal->ReleaseMemory();
+		gOpenCl->openClEngineRenderFractal->Unlock();
+	}
+#endif
 
 	return distanceBehind;
 }

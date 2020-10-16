@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -51,9 +51,6 @@ cAudioSelector::cAudioSelector(QWidget *parent) : QWidget(parent), ui(new Ui::cA
 	automatedWidgets = new cAutomatedWidgets(this);
 	automatedWidgets->ConnectSignalsForSlidersInWindow(this);
 
-	audioOutput = nullptr;
-	playStream = nullptr;
-
 	ConnectSignals();
 	animationFrames = nullptr;
 	setAttribute(Qt::WA_DeleteOnClose, true);
@@ -67,10 +64,8 @@ cAudioSelector::~cAudioSelector()
 	if (audioOutput)
 	{
 		audioOutput->stop();
-		delete audioOutput;
 	}
 
-	if (playStream) delete playStream;
 	delete ui;
 }
 
@@ -99,7 +94,7 @@ void cAudioSelector::slotLoadAudioFile()
 		slotPlaybackStop();
 		SetStartStopButtonsPlayingStatus(QAudio::IdleState);
 
-		connect(audio.data(), SIGNAL(loadingFinished()), this, SLOT(slotAudioLoaded()));
+		connect(audio.get(), SIGNAL(loadingFinished()), this, SLOT(slotAudioLoaded()));
 		audio->LoadAudio(filename);
 	}
 }
@@ -225,7 +220,7 @@ void cAudioSelector::slotPlaybackStart() const
 				break;
 			case QAudio::StoppedState:
 				// stopped -> play
-				audioOutput->start(playStream);
+				audioOutput->start(playStream.get());
 				SetStartStopButtonsPlayingStatus(QAudio::ActiveState);
 				break;
 			case QAudio::IdleState: qWarning() << "audio not loaded yet!"; break;
@@ -244,20 +239,18 @@ void cAudioSelector::audioSetup()
 	format.setByteOrder(QAudioFormat::LittleEndian);
 	format.setSampleType(QAudioFormat::Float);
 
-	if (audioOutput) delete audioOutput;
-	audioOutput = new QAudioOutput(format, this);
+	audioOutput.reset(new QAudioOutput(format, this));
 	audioOutput->setVolume(1.0);
 	audioOutput->setNotifyInterval(50);
 
-	connect(audioOutput, SIGNAL(notify()), this, SLOT(slotPlayPositionChanged()));
-	connect(audioOutput, SIGNAL(stateChanged(QAudio::State)), this,
+	connect(audioOutput.get(), SIGNAL(notify()), this, SLOT(slotPlayPositionChanged()));
+	connect(audioOutput.get(), SIGNAL(stateChanged(QAudio::State)), this,
 		SLOT(slotPlaybackStateChanged(QAudio::State)));
 
 	playBuffer = QByteArray(
 		reinterpret_cast<char *>(audio->getRawAudio()), int(audio->getLength() * sizeof(float)));
 
-	if (playStream) delete playStream;
-	playStream = new QBuffer(&playBuffer);
+	playStream.reset(new QBuffer(&playBuffer));
 	playStream->open(QIODevice::ReadOnly);
 	slotPlayPositionChanged();
 }
@@ -289,14 +282,14 @@ QString cAudioSelector::FullParameterName(const QString &name) const
 	return QString("animsound_") + name + "_" + parameterName;
 }
 
-void cAudioSelector::AssignAnimation(cAnimationFrames *_animationFrames)
+void cAudioSelector::AssignAnimation(std::shared_ptr<cAnimationFrames> _animationFrames)
 {
 	animationFrames = _animationFrames;
 	if (animationFrames && !parameterName.isEmpty())
 	{
 		audio = animationFrames->GetAudioPtr(parameterName);
-		connect(audio.data(), SIGNAL(loadingProgress(QString)), this, SIGNAL(loadingProgress(QString)));
-		connect(audio.data(), SIGNAL(loadingFailed()), ui->waveForm, SLOT(slotLoadingFailed()));
+		connect(audio.get(), SIGNAL(loadingProgress(QString)), this, SIGNAL(loadingProgress(QString)));
+		connect(audio.get(), SIGNAL(loadingFailed()), ui->waveForm, SLOT(slotLoadingFailed()));
 
 		if (audio->isLoaded())
 		{

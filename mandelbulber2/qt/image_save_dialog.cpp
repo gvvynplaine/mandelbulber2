@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -51,11 +51,13 @@ cImageSaveDialog::cImageSaveDialog(QWidget *parent)
 
 	// load the custom image quality ui into a container widget
 	// and append it to the QFileDialog ui
-	QWidget *container = new QWidget();
+	QWidget *container = new QWidget(this);
 	QGridLayout *gridLayout = static_cast<QGridLayout *>(layout());
 	ui->setupUi(container);
 	gridLayout->addWidget(container, 1, 3, 3, 1);
-	resize(900, height()); // needs more width to display all elements
+	// resize(900, height()); // needs more width to display all elements
+	adjustSize();
+	container->adjustSize();
 
 	// connect signal and synchronize image quality settings
 	automatedWidgets = new cAutomatedWidgets(this);

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -41,7 +41,6 @@
 #include "cimage.hpp"
 #include "command_line_interface.hpp"
 #include "error_message.hpp"
-#include "fractal_list.hpp"
 #include "global_data.hpp"
 #include "headless.h"
 #include "initparameters.hpp"
@@ -55,6 +54,12 @@
 #include "rendered_image_widget.hpp"
 #include "settings.hpp"
 #include "system.hpp"
+#include "system_data.hpp"
+#include "system_directories.hpp"
+#include "undo.h"
+#include "write_log.hpp"
+
+#include "formula/definition/all_fractal_list.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -102,13 +107,17 @@ int main(int argc, char *argv[])
 	qRegisterMetaType<QMessageBox::StandardButtons *>("QMessageBox::StandardButtons*");
 	qRegisterMetaType<cErrorMessage::enumMessageType>("cErrorMessage::enumMessageType");
 	qRegisterMetaType<QList<sRenderedTileData> /* */>("QList<sRenderedTileData>");
+	qRegisterMetaType<std::shared_ptr<const cParameterContainer> /* */>(
+		"std::shared_ptr<const cParameterContainer>");
+	qRegisterMetaType<std::shared_ptr<const cFractalContainer> /* */>(
+		"std::shared_ptr<const cFractalContainer>");
 
 	CalcPreferredFontSize(commandLineInterface.isNoGUI());
 
+	gErrorMessage = new cErrorMessage(gApplication);
+
 	// class for interface windows
 	gMainInterface = new cInterface;
-
-	gErrorMessage = new cErrorMessage;
 
 	// create default directories and copy all needed files
 	WriteLog("CreateDefaultFolders()", 2);
@@ -119,28 +128,28 @@ int main(int argc, char *argv[])
 	}
 
 	// create internal database with parameters
-	gPar = new cParameterContainer;
-	gParFractal = new cFractalContainer;
+	gPar.reset(new cParameterContainer);
+	gParFractal.reset(new cFractalContainer);
 
 	// Allocate container for animation frames
-	gAnimFrames = new cAnimationFrames;
+	gAnimFrames.reset(new cAnimationFrames);
 
 	// Allocate container for key frames
-	gKeyframes = new cKeyframes;
+	gKeyframes.reset(new cKeyframes);
 
 	gPar->SetContainerName("main");
 	InitParams(gPar);
 	for (int i = 0; i < NUMBER_OF_FRACTALS; i++)
 	{
-		gParFractal->at(i).SetContainerName(QString("fractal") + QString::number(i));
-		InitFractalParams(&gParFractal->at(i));
+		gParFractal->at(i)->SetContainerName(QString("fractal") + QString::number(i));
+		InitFractalParams(gParFractal->at(i));
 	}
 
 	// Define list of fractal formulas
-	DefineFractalList(&fractalList);
+	DefineFractalList(&newFractalList);
 
 	// Netrender
-	gNetRender = new cNetRender();
+	gNetRender = new cNetRender(gMainInterface);
 
 	// loading AppSettings
 	QString iniFileName = systemData.GetIniFile();
@@ -164,7 +173,7 @@ int main(int argc, char *argv[])
 	UpdateLanguage();
 
 #ifdef USE_OPENCL
-	gOpenCl = new cGlobalOpenCl();
+	gOpenCl = new cGlobalOpenCl(gApplication);
 #endif
 
 	commandLineInterface.ReadCLI();
@@ -187,8 +196,8 @@ int main(int argc, char *argv[])
 
 		try
 		{
-			gQueue = new cQueue(gMainInterface, systemData.GetQueueFractlistFile(),
-				systemData.GetQueueFolder(), gMainInterface->mainWindow);
+			gQueue = new cQueue(gMainInterface, systemDirectories.GetQueueFractlistFile(),
+				systemDirectories.GetQueueFolder(), gMainInterface->mainWindow);
 		}
 		catch (QString &ex)
 		{
@@ -212,6 +221,8 @@ int main(int argc, char *argv[])
 
 	gInterfaceReadyForSynchronization = true;
 
+	gUndo = new cUndo(gMainInterface);
+
 	if (!commandLineInterface.isNoGUI())
 	{
 		gMainInterface->mainWindow->slotPopulateToolbar();
@@ -228,20 +239,9 @@ int main(int argc, char *argv[])
 	}
 
 	// clean objects when exit
-	delete gPar;
-	gPar = nullptr;
-	delete gParFractal;
-	if (gFlightAnimation) delete gFlightAnimation;
-	if (gKeyframeAnimation) delete gKeyframeAnimation;
-	delete gAnimFrames;
-	delete gKeyframes;
-	delete gNetRender;
-	delete gQueue;
-#ifdef USE_OPENCL
-	delete gOpenCl;
-#endif
+
 	delete gMainInterface;
-	delete gErrorMessage;
 	delete gApplication;
+
 	return result;
 }

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -39,9 +39,10 @@
 #ifndef MANDELBULBER2_SRC_SSAO_WORKER_H_
 #define MANDELBULBER2_SRC_SSAO_WORKER_H_
 
-#include <qobject.h>
+#include <memory>
 
 #include <QList>
+#include <QObject>
 #include <QThread>
 
 #include "color_structures.hpp"
@@ -70,7 +71,7 @@ public:
 	};
 
 	cSSAOWorker(const sParamRender *_params, sThreadData *_threadData, const sRenderData *_data,
-		cImage *_image);
+		std::shared_ptr<cImage> _image);
 	~cSSAOWorker() override;
 
 	QThread workerThread;
@@ -79,7 +80,7 @@ public:
 	const sParamRender *params;
 	const sRenderData *data;
 	sThreadData *threadData;
-	cImage *image;
+	std::shared_ptr<cImage> image;
 
 public slots:
 	void doWork();

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2019 Mandelbulber Team        §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2019-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,7 +35,10 @@
 
 #include "netrender_transport.hpp"
 
+#include <QDataStream>
+
 #include "lzo_compression.h"
+#include "write_log.hpp"
 
 bool cNetRenderTransport::SendData(QTcpSocket *socket, sMessage msg, qint32 id)
 {
@@ -117,15 +120,14 @@ bool cNetRenderTransport::ReceiveData(QTcpSocket *socket, sMessage *msg)
 	if (socket->bytesAvailable() < (sMessage::crcSize() + msg->size)) return false;
 
 	// full payload available, read to buffer
-	char *buffer = new char[msg->size];
-	socketReadStream.readRawData(buffer, msg->size);
-	msg->payload.append(buffer, msg->size);
+	std::vector<char> buffer(msg->size);
+	socketReadStream.readRawData(buffer.data(), msg->size);
+	msg->payload.append(buffer.data(), msg->size);
 
 	// run crc check on the payload
-	quint16 crcCalculated = qChecksum(buffer, msg->size);
+	quint16 crcCalculated = qChecksum(buffer.data(), msg->size);
 	quint16 crcReceived;
 	socketReadStream >> crcReceived;
-	delete[] buffer;
 	if (crcCalculated != crcReceived)
 	{
 		WriteLog("NetRender - ReceiveData() : crc error", 2);

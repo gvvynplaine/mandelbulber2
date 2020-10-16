@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2015-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2015-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,10 +34,11 @@
 
 #include "my_table_widget_anim.hpp"
 
+#include <memory>
+
 #include <QContextMenuEvent>
 #include <QHeaderView>
 #include <QMenu>
-#include <QtCore>
 
 #include "src/animation_flight.hpp"
 
@@ -63,7 +64,7 @@ void MyTableWidgetAnim::tableContextMenuRequest(QPoint point) const
 	int row = index.row();
 	int column = index.column();
 
-	QMenu *menu = new QMenu;
+	std::unique_ptr<QMenu> menu(new QMenu);
 
 	QAction *actionRender = nullptr;
 	QAction *interpolateForward = nullptr;
@@ -93,13 +94,11 @@ void MyTableWidgetAnim::tableContextMenuRequest(QPoint point) const
 			gFlightAnimation->InterpolateForward(row, column);
 		}
 	}
-
-	delete menu;
 }
 
 void MyTableWidgetAnim::columnContextMenuRequest(QPoint point) const
 {
-	QMenu *menu = new QMenu;
+	std::unique_ptr<QMenu> menu(new QMenu);
 
 	QAction *actionRender;
 	QAction *actionDeleteTo;
@@ -128,15 +127,13 @@ void MyTableWidgetAnim::columnContextMenuRequest(QPoint point) const
 			gFlightAnimation->DeleteFramesTo(column);
 		}
 	}
-
-	delete menu;
 }
 
 void MyTableWidgetAnim::rowContextMenuRequest(QPoint point) const
 {
 	int row = verticalHeader()->logicalIndexAt(point);
 
-	QMenu *menu = new QMenu;
+	std::unique_ptr<QMenu> menu(new QMenu);
 
 	if (row > 0)
 	{
@@ -170,6 +167,4 @@ void MyTableWidgetAnim::rowContextMenuRequest(QPoint point) const
 			}
 		}
 	}
-
-	delete menu;
 }

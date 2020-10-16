@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-17 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,6 +35,7 @@
 #ifndef MANDELBULBER2_SRC_OLD_SETTINGS_HPP_
 #define MANDELBULBER2_SRC_OLD_SETTINGS_HPP_
 
+#include <memory>
 #include <vector>
 
 #include "algebra.hpp"
@@ -499,7 +500,8 @@ public:
 	cOldSettings();
 	~cOldSettings();
 	bool LoadSettings(const QString &filename);
-	void ConvertToNewContainer(cParameterContainer *params, cFractalContainer *fractal) const;
+	void ConvertToNewContainer(
+		std::shared_ptr<cParameterContainer> params, std::shared_ptr<cFractalContainer> fractal) const;
 
 private:
 	bool LoadSettings2(const QString &filename);

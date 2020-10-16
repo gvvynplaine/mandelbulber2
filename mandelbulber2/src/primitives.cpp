@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -39,9 +39,10 @@
 #include "common_math.h"
 #include "displacement_map.hpp"
 #include "parameters.hpp"
-#include "system.hpp"
+#include "write_log.hpp"
 
 using namespace fractal;
+using namespace std;
 
 QString PrimitiveNames(enumObjectType primitiveType)
 {
@@ -87,9 +88,10 @@ enumObjectType PrimitiveNameToEnum(const QString &primitiveType)
 	return type;
 }
 
-cPrimitives::cPrimitives(const cParameterContainer *par, QVector<cObjectData> *objectData)
+cPrimitives::cPrimitives(
+	const std::shared_ptr<cParameterContainer> par, QVector<cObjectData> *objectData)
 {
-	WriteLog("cPrimitives::cPrimitives(const cParameterContainer *par) started", 3);
+	WriteLog("cPrimitives::cPrimitives(const std::shared_ptr<cParameterContainer> par) started", 3);
 	isAnyPrimitive = false;
 
 	QList<QString> listOfParameters = par->GetListOfParameters();
@@ -275,7 +277,7 @@ cPrimitives::cPrimitives(const cParameterContainer *par, QVector<cObjectData> *o
 	allPrimitivesRotation = par->Get<CVector3>("all_primitives_rotation");
 	mRotAllPrimitivesRotation.SetRotation2(allPrimitivesRotation / 180.0 * M_PI);
 
-	WriteLog("cPrimitives::cPrimitives(const cParameterContainer *par) finished", 3);
+	WriteLog("cPrimitives::cPrimitives(const std::shared_ptr<cParameterContainer> par) finished", 3);
 }
 
 cPrimitives::~cPrimitives()

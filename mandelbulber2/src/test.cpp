@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,6 +34,8 @@
 
 #include "test.hpp"
 
+#include <memory>
+
 #include "animation_flight.hpp"
 #include "animation_frames.hpp"
 #include "animation_keyframes.hpp"
@@ -49,11 +51,12 @@
 #include "render_job.hpp"
 #include "rendering_configuration.hpp"
 #include "settings.hpp"
-#include "system.hpp"
+#include "system_directories.hpp"
+#include "write_log.hpp"
 
 QString Test::testFolder()
 {
-	return systemData.GetDataDirectoryHidden() + ".temporaryTestFolder";
+	return systemDirectories.GetDataDirectoryHidden() + ".temporaryTestFolder";
 }
 
 void Test::init()
@@ -85,14 +88,14 @@ void Test::renderExamples() const
 	// this renders all example files in a resolution of 5x5 px
 	// and benchmarks the runtime
 	const QString examplePath =
-		QDir::toNativeSeparators(systemData.sharedDir + QDir::separator() + "examples");
+		QDir::toNativeSeparators(systemDirectories.sharedDir + QDir::separator() + "examples");
 	QDirIterator it(
 		examplePath, QStringList() << "*.fract", QDir::Files, QDirIterator::Subdirectories);
 
-	cParameterContainer *testPar = new cParameterContainer;
-	cFractalContainer *testParFractal = new cFractalContainer;
-	cAnimationFrames *testAnimFrames = new cAnimationFrames;
-	cKeyframes *testKeyframes = new cKeyframes;
+	std::shared_ptr<cParameterContainer> testPar(new cParameterContainer());
+	std::shared_ptr<cFractalContainer> testParFractal(new cFractalContainer());
+	std::shared_ptr<cAnimationFrames> testAnimFrames(new cAnimationFrames());
+	std::shared_ptr<cKeyframes> testKeyframes(new cKeyframes());
 
 	testPar->SetContainerName("main");
 	InitParams(testPar);
@@ -103,11 +106,12 @@ void Test::renderExamples() const
 	/*******************************************************************/
 	for (int i = 0; i < NUMBER_OF_FRACTALS; i++)
 	{
-		testParFractal->at(i).SetContainerName(QString("fractal") + QString::number(i));
-		InitFractalParams(&testParFractal->at(i));
+		testParFractal->at(i)->SetContainerName(QString("fractal") + QString::number(i));
+		InitFractalParams(testParFractal->at(i));
 	}
 	bool stopRequest = false;
-	cImage *image = new cImage(testPar->Get<int>("image_width"), testPar->Get<int>("image_height"));
+	std::shared_ptr<cImage> image(
+		new cImage(testPar->Get<int>("image_width"), testPar->Get<int>("image_height")));
 	cRenderingConfiguration config;
 	config.DisableRefresh();
 	config.DisableProgressiveRender();
@@ -185,6 +189,7 @@ void Test::renderExamples() const
 					cpuGpuString = "GPU";
 					break;
 				}
+				default: break;
 			}
 
 			QElapsedTimer timer;
@@ -203,7 +208,8 @@ void Test::renderExamples() const
 			double distance = gMainInterface->GetDistanceForPoint(
 				testPar->Get<CVector3>("camera"), testPar, testParFractal);
 
-			cRenderJob *renderJob = new cRenderJob(testPar, testParFractal, image, &stopRequest);
+			std::unique_ptr<cRenderJob> renderJob(
+				new cRenderJob(testPar, testParFractal, image, &stopRequest));
 			renderJob->Init(cRenderJob::still, config);
 
 			if (IsBenchmarking())
@@ -221,27 +227,20 @@ void Test::renderExamples() const
 
 				SaveImage(imgFileName, ImageFileSave::IMAGE_FILE_TYPE_PNG, image, nullptr);
 			}
-			delete renderJob;
 
 			WriteLog(
 				QString("example: %1 rendered in %2 Milliseconds").arg(filename).arg(elapsedTime), 1);
 			testPar->PrintListOfParameters();
 		}
 	}
-
-	delete image;
-	delete testKeyframes;
-	delete testAnimFrames;
-	delete testParFractal;
-	delete testPar;
 }
 
-void Test::netrender() const
+void Test::netrender()
 {
 	if (IsBenchmarking()) return; // no reasonable generic network benchmark
 	// test connection of server / client over localhost
-	cNetRender *netRenderServer = new cNetRender();
-	cNetRender *netRenderClient = new cNetRender();
+	std::unique_ptr<cNetRender> netRenderServer(new cNetRender(this));
+	std::unique_ptr<cNetRender> netRenderClient(new cNetRender(this));
 	netRenderServer->SetServer(5555);
 	netRenderClient->SetClient("127.0.0.1", 5555);
 
@@ -256,9 +255,6 @@ void Test::netrender() const
 
 	QVERIFY2(netRenderServer->GetClientCount() == 1,
 		QString("client not connected to server.").toStdString().c_str());
-
-	delete netRenderClient;
-	delete netRenderServer;
 }
 
 void Test::testFlightWrapper() const
@@ -276,13 +272,13 @@ void Test::testFlightWrapper() const
 void Test::testFlight() const
 {
 	const QString exampleFlightFile =
-		QDir::toNativeSeparators(systemData.sharedDir + QDir::separator() + "examples"
+		QDir::toNativeSeparators(systemDirectories.sharedDir + QDir::separator() + "examples"
 														 + QDir::separator() + "flight_anim_menger sponge_3.fract");
 
-	cParameterContainer *testPar = new cParameterContainer;
-	cFractalContainer *testParFractal = new cFractalContainer;
-	cAnimationFrames *testAnimFrames = new cAnimationFrames;
-	cKeyframes *testKeyframes = new cKeyframes;
+	std::shared_ptr<cParameterContainer> testPar(new cParameterContainer());
+	std::shared_ptr<cFractalContainer> testParFractal(new cFractalContainer());
+	std::shared_ptr<cAnimationFrames> testAnimFrames(new cAnimationFrames());
+	std::shared_ptr<cKeyframes> testKeyframes(new cKeyframes());
 
 	testPar->SetContainerName("main");
 	InitParams(testPar);
@@ -293,10 +289,11 @@ void Test::testFlight() const
 	/*******************************************************************/
 	for (int i = 0; i < NUMBER_OF_FRACTALS; i++)
 	{
-		testParFractal->at(i).SetContainerName(QString("fractal") + QString::number(i));
-		InitFractalParams(&testParFractal->at(i));
+		testParFractal->at(i)->SetContainerName(QString("fractal") + QString::number(i));
+		InitFractalParams(testParFractal->at(i));
 	}
-	cImage *image = new cImage(testPar->Get<int>("image_width"), testPar->Get<int>("image_height"));
+	std::shared_ptr<cImage> image(
+		new cImage(testPar->Get<int>("image_width"), testPar->Get<int>("image_height")));
 	cRenderingConfiguration config;
 	config.DisableRefresh();
 	config.DisableProgressiveRender();
@@ -311,19 +308,12 @@ void Test::testFlight() const
 	testPar->Set("flight_last_to_render", IsBenchmarking() ? 100 : 55);
 	testPar->Set("anim_flight_dir", testFolder() + QDir::separator());
 
-	cFlightAnimation *flightAnimation = new cFlightAnimation(
-		gMainInterface, testAnimFrames, image, nullptr, testPar, testParFractal, nullptr);
+	std::unique_ptr<cFlightAnimation> flightAnimation(new cFlightAnimation(
+		gMainInterface, testAnimFrames, image, nullptr, testPar, testParFractal, nullptr));
 	if (IsBenchmarking())
 		flightAnimation->slotRenderFlight();
 	else
 		QVERIFY2(flightAnimation->slotRenderFlight(), "flight render failed.");
-
-	delete image;
-	delete testKeyframes;
-	delete testAnimFrames;
-	delete testParFractal;
-	delete testPar;
-	delete flightAnimation;
 }
 
 void Test::testKeyframeWrapper() const
@@ -341,13 +331,13 @@ void Test::testKeyframeWrapper() const
 void Test::testKeyframe() const
 {
 	const QString exampleKeyframeFile =
-		QDir::toNativeSeparators(systemData.sharedDir + QDir::separator() + "examples"
+		QDir::toNativeSeparators(systemDirectories.sharedDir + QDir::separator() + "examples"
 														 + QDir::separator() + "keyframe_anim_mandelbulb.fract");
 
-	cParameterContainer *testPar = new cParameterContainer;
-	cFractalContainer *testParFractal = new cFractalContainer;
-	cAnimationFrames *testAnimFrames = new cAnimationFrames;
-	cKeyframes *testKeyframes = new cKeyframes;
+	std::shared_ptr<cParameterContainer> testPar(new cParameterContainer);
+	std::shared_ptr<cFractalContainer> testParFractal(new cFractalContainer);
+	std::shared_ptr<cAnimationFrames> testAnimFrames(new cAnimationFrames());
+	std::shared_ptr<cKeyframes> testKeyframes(new cKeyframes());
 
 	testPar->SetContainerName("main");
 	InitParams(testPar);
@@ -358,10 +348,11 @@ void Test::testKeyframe() const
 	/*******************************************************************/
 	for (int i = 0; i < NUMBER_OF_FRACTALS; i++)
 	{
-		testParFractal->at(i).SetContainerName(QString("fractal") + QString::number(i));
-		InitFractalParams(&testParFractal->at(i));
+		testParFractal->at(i)->SetContainerName(QString("fractal") + QString::number(i));
+		InitFractalParams(testParFractal->at(i));
 	}
-	cImage *image = new cImage(testPar->Get<int>("image_width"), testPar->Get<int>("image_height"));
+	std::shared_ptr<cImage> image(
+		new cImage(testPar->Get<int>("image_width"), testPar->Get<int>("image_height")));
 	cRenderingConfiguration config;
 	config.DisableRefresh();
 	config.DisableProgressiveRender();
@@ -376,19 +367,12 @@ void Test::testKeyframe() const
 	testPar->Set("keyframe_last_to_render", IsBenchmarking() ? 100 : 55);
 	testPar->Set("anim_keyframe_dir", testFolder() + QDir::separator());
 
-	cKeyframeAnimation *testKeyframeAnimation = new cKeyframeAnimation(
-		gMainInterface, testKeyframes, image, nullptr, testPar, testParFractal, nullptr);
+	std::unique_ptr<cKeyframeAnimation> testKeyframeAnimation(new cKeyframeAnimation(
+		gMainInterface, testKeyframes, image, nullptr, testPar, testParFractal, nullptr));
 	if (IsBenchmarking())
 		testKeyframeAnimation->slotRenderKeyframes();
 	else
 		QVERIFY2(testKeyframeAnimation->slotRenderKeyframes(), "keyframe render failed.");
-
-	delete image;
-	delete testKeyframes;
-	delete testAnimFrames;
-	delete testParFractal;
-	delete testPar;
-	delete testKeyframeAnimation;
 }
 
 void Test::renderSimpleWrapper() const
@@ -408,13 +392,13 @@ void Test::renderSimple() const
 	// this renders an example file in an "usual" resolution of 100x100 px
 	// and benchmarks the runtime
 	const QString simpleExampleFileName =
-		QDir::toNativeSeparators(systemData.sharedDir + QDir::separator() + "examples"
+		QDir::toNativeSeparators(systemDirectories.sharedDir + QDir::separator() + "examples"
 														 + QDir::separator() + "mandelbox001.fract");
 
-	cParameterContainer *testPar = new cParameterContainer;
-	cFractalContainer *testParFractal = new cFractalContainer;
-	cAnimationFrames *testAnimFrames = new cAnimationFrames;
-	cKeyframes *testKeyframes = new cKeyframes;
+	std::shared_ptr<cParameterContainer> testPar(new cParameterContainer());
+	std::shared_ptr<cFractalContainer> testParFractal(new cFractalContainer());
+	std::shared_ptr<cAnimationFrames> testAnimFrames(new cAnimationFrames());
+	std::shared_ptr<cKeyframes> testKeyframes(new cKeyframes());
 
 	testPar->SetContainerName("main");
 	InitParams(testPar);
@@ -425,11 +409,12 @@ void Test::renderSimple() const
 	/*******************************************************************/
 	for (int i = 0; i < NUMBER_OF_FRACTALS; i++)
 	{
-		testParFractal->at(i).SetContainerName(QString("fractal") + QString::number(i));
-		InitFractalParams(&testParFractal->at(i));
+		testParFractal->at(i)->SetContainerName(QString("fractal") + QString::number(i));
+		InitFractalParams(testParFractal->at(i));
 	}
 	bool stopRequest = false;
-	cImage *image = new cImage(testPar->Get<int>("image_width"), testPar->Get<int>("image_height"));
+	std::shared_ptr<cImage> image(
+		new cImage(testPar->Get<int>("image_width"), testPar->Get<int>("image_height")));
 	cRenderingConfiguration config;
 	config.DisableRefresh();
 	config.DisableProgressiveRender();
@@ -440,20 +425,14 @@ void Test::renderSimple() const
 	parSettings.Decode(testPar, testParFractal, testAnimFrames, testKeyframes);
 	testPar->Set("image_width", IsBenchmarking() ? 20 * difficulty : 100);
 	testPar->Set("image_height", IsBenchmarking() ? 20 * difficulty : 100);
-	cRenderJob *renderJob = new cRenderJob(testPar, testParFractal, image, &stopRequest);
+	std::unique_ptr<cRenderJob> renderJob(
+		new cRenderJob(testPar, testParFractal, image, &stopRequest));
 	renderJob->Init(cRenderJob::still, config);
 
 	if (IsBenchmarking())
 		renderJob->Execute();
 	else
 		QVERIFY2(renderJob->Execute(), "example render failed.");
-
-	delete renderJob;
-	delete image;
-	delete testKeyframes;
-	delete testAnimFrames;
-	delete testParFractal;
-	delete testPar;
 }
 
 void Test::testImageSaveWrapper() const
@@ -473,13 +452,13 @@ void Test::renderImageSave() const
 	// this renders an example file in an "usual" resolution of 100x100 px
 	// and benchmarks the runtime, then saves each image type
 	const QString simpleExampleFileName =
-		QDir::toNativeSeparators(systemData.sharedDir + QDir::separator() + "examples"
+		QDir::toNativeSeparators(systemDirectories.sharedDir + QDir::separator() + "examples"
 														 + QDir::separator() + "mandelbulb001.fract");
 
-	cParameterContainer *testPar = new cParameterContainer;
-	cFractalContainer *testParFractal = new cFractalContainer;
-	cAnimationFrames *testAnimFrames = new cAnimationFrames;
-	cKeyframes *testKeyframes = new cKeyframes;
+	std::shared_ptr<cParameterContainer> testPar(new cParameterContainer());
+	std::shared_ptr<cFractalContainer> testParFractal(new cFractalContainer());
+	std::shared_ptr<cAnimationFrames> testAnimFrames(new cAnimationFrames());
+	std::shared_ptr<cKeyframes> testKeyframes(new cKeyframes());
 
 	testPar->SetContainerName("main");
 	InitParams(testPar);
@@ -491,11 +470,12 @@ void Test::renderImageSave() const
 	/*******************************************************************/
 	for (int i = 0; i < NUMBER_OF_FRACTALS; i++)
 	{
-		testParFractal->at(i).SetContainerName(QString("fractal") + QString::number(i));
-		InitFractalParams(&testParFractal->at(i));
+		testParFractal->at(i)->SetContainerName(QString("fractal") + QString::number(i));
+		InitFractalParams(testParFractal->at(i));
 	}
 	bool stopRequest = false;
-	cImage *image = new cImage(testPar->Get<int>("image_width"), testPar->Get<int>("image_height"));
+	std::shared_ptr<cImage> image(
+		new cImage(testPar->Get<int>("image_width"), testPar->Get<int>("image_height")));
 	cRenderingConfiguration config;
 	config.DisableRefresh();
 	config.DisableProgressiveRender();
@@ -507,7 +487,8 @@ void Test::renderImageSave() const
 	testPar->Set("image_width", IsBenchmarking() ? 20 * difficulty : 100);
 	testPar->Set("image_height", IsBenchmarking() ? 20 * difficulty : 100);
 
-	cRenderJob *renderJob = new cRenderJob(testPar, testParFractal, image, &stopRequest);
+	std::unique_ptr<cRenderJob> renderJob(
+		new cRenderJob(testPar, testParFractal, image, &stopRequest));
 	renderJob->Init(cRenderJob::still, config);
 
 	if (IsBenchmarking())
@@ -598,10 +579,4 @@ void Test::renderImageSave() const
 			}
 		}
 	}
-	delete renderJob;
-	delete image;
-	delete testKeyframes;
-	delete testAnimFrames;
-	delete testParFractal;
-	delete testPar;
 }

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-17 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -37,6 +37,8 @@
 #ifndef MANDELBULBER2_QT_SYSTEM_TRAY_HPP_
 #define MANDELBULBER2_QT_SYSTEM_TRAY_HPP_
 
+#include <memory>
+
 #include <QAction>
 #include <QSystemTrayIcon>
 
@@ -47,7 +49,7 @@ class cSystemTray : public QObject
 {
 	Q_OBJECT
 public:
-	cSystemTray(cImage *image, QObject *parent = nullptr);
+	cSystemTray(std::shared_ptr<cImage> image, QObject *parent = nullptr);
 	~cSystemTray() override;
 
 private:
@@ -58,9 +60,9 @@ private:
 	QAction *stActionQuit;
 	QAction *stActionToggleNotification;
 	QSystemTrayIcon *systemTrayIcon;
-	cImage *image;
+	std::shared_ptr<cImage> image;
 	bool isBusy;
-	QMenu *menu;
+	std::unique_ptr<QMenu> menu;
 	QTimer *checkBusyTimer;
 
 public slots:

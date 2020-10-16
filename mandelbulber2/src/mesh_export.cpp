@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,6 +34,9 @@
 
 #include "mesh_export.hpp"
 
+#include <memory>
+#include <vector>
+
 #include "calculate_distance.hpp"
 #include "common_math.h"
 #include "compute_fractal.hpp"
@@ -47,6 +50,8 @@
 #include "material.h"
 #include "nine_fractals.hpp"
 #include "render_data.hpp"
+#include "wait.hpp"
+#include "write_log.hpp"
 
 cMeshExport::cMeshExport(int w, int h, int l, CVector3 limitMin, CVector3 limitMax,
 	QString outputFileName, int maxIter, MeshFileSave::structSaveMeshConfig meshConfig)
@@ -65,26 +70,26 @@ cMeshExport::cMeshExport(int w, int h, int l, CVector3 limitMin, CVector3 limitM
 
 cMeshExport::~cMeshExport() = default;
 
-void cMeshExport::updateProgressAndStatus(int i)
+void cMeshExport::slotUpdateProgressAndStatus(int i, quint64 polygonsCount)
 {
 	QString statusText =
-		" - " + tr("Processing layer %1 of %2").arg(QString::number(i + 1), QString::number(w));
+		" - " + tr("Processing layer %1 of %2. Got %3 polygons").arg(i + 1).arg(w).arg(polygonsCount);
 
 	double percentDone = double(i) / w;
 
-	emit updateProgressAndStatus(
+	emit signalUpdateProgressAndStatus(
 		tr("Mesh Export") + statusText, progressText.getText(percentDone), percentDone);
 }
 
 void cMeshExport::ProcessVolume()
 {
-	QScopedPointer<sRenderData> renderData(new sRenderData);
+	std::shared_ptr<sRenderData> renderData(new sRenderData);
 	renderData->objectData.resize(NUMBER_OF_FRACTALS);
 
-	QScopedPointer<cNineFractals> fractals(new cNineFractals(gParFractal, gPar));
-	QScopedPointer<sParamRender> params(new sParamRender(gPar, &renderData->objectData));
+	std::shared_ptr<cNineFractals> fractals(new cNineFractals(gParFractal, gPar));
+	std::shared_ptr<sParamRender> params(new sParamRender(gPar, &renderData->objectData));
 
-	CreateMaterialsMap(gPar, &renderData.data()->materials, false, true, false);
+	CreateMaterialsMap(gPar, &renderData.get()->materials, false, true, false);
 
 	renderData->ValidateObjects();
 
@@ -117,37 +122,36 @@ void cMeshExport::ProcessVolume()
 	limitMax.z = limitMin.z + l * step;
 
 	// update fractal limits to calculated box
-	params.data()->limitMin = limitMin + CVector3(extension, extension, extension);
-	params.data()->limitMax = limitMax - CVector3(extension, extension, extension);
+	params.get()->limitMin = limitMin + CVector3(extension, extension, extension);
+	params.get()->limitMax = limitMax - CVector3(extension, extension, extension);
 
 	progressText.ResetTimer();
 
-	vector<double> vertices;
-	vector<long long> polygons;
-	vector<double> colorIndices;
+	std::vector<double> vertices;
+	std::vector<long long> polygons;
+	std::vector<double> colorIndices;
 
 	WriteLog("Starting marching cubes...", 2);
 	MarchingCubes *marchingCube;
 	try
 	{
-		marchingCube =
-			new MarchingCubes(gPar, gParFractal, params.data(), fractals.data(), renderData.data(), w, h,
-				l, limitMin, limitMax, dist_thresh, &stop, vertices, polygons, colorIndices);
+		marchingCube = new MarchingCubes(gPar, gParFractal, params, fractals, renderData, w, h, l,
+			limitMin, limitMax, dist_thresh, &stop, vertices, polygons, colorIndices);
 	}
 	catch (std::bad_alloc &ba)
 	{
 		QString errorMessage = QString("bad_alloc caught in MarchingCubes: ") + ba.what()
 													 + ", maybe required mesh dimension to big?";
 		qCritical() << errorMessage;
-		emit updateProgressAndStatus(errorMessage, "Error occured", 0.0);
+		emit signalUpdateProgressAndStatus(errorMessage, "Error occured", 0.0);
 		emit finished();
 		return;
 	}
 
 	QThread *thread = new QThread();
 	marchingCube->moveToThread(thread);
-	QObject::connect(
-		marchingCube, SIGNAL(updateProgressAndStatus(int)), this, SLOT(updateProgressAndStatus(int)));
+	QObject::connect(marchingCube, &MarchingCubes::signalUpdateProgressAndStatus, this,
+		&cMeshExport::slotUpdateProgressAndStatus);
 	connect(thread, SIGNAL(started()), marchingCube, SLOT(RunMarchingCube()));
 	connect(marchingCube, SIGNAL(finished()), thread, SLOT(quit()));
 	connect(thread, SIGNAL(finished()), marchingCube, SLOT(deleteLater()));
@@ -179,16 +183,17 @@ void cMeshExport::ProcessVolume()
 	// Save to file
 	MeshFileSave::structSaveMeshData meshData(&vertices, &polygons, &colorsRGB);
 	MeshFileSave *meshFileSave = MeshFileSave::create(outputFileName, meshConfig, meshData);
-	QObject::connect(meshFileSave,
-		SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)), this,
-		SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)));
+	QObject::connect(meshFileSave, &MeshFileSave::updateProgressAndStatus, this,
+		&cMeshExport::signalUpdateProgressAndStatus);
 	meshFileSave->SaveMesh();
 
 	QString statusText;
 	if (stop)
 		statusText = tr("Mesh Export finished - Cancelled export");
 	else
-		statusText = tr("Mesh Export finished - Processed %1 layers").arg(QString::number(w));
-	emit updateProgressAndStatus(statusText, progressText.getText(1.0), 1.0);
+		statusText = tr("Mesh Export finished - Processed %1 layers and got %2 polygons")
+									 .arg(w)
+									 .arg(polygons.size());
+	emit signalUpdateProgressAndStatus(statusText, progressText.getText(1.0), 1.0);
 	emit finished();
 }

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,11 +34,15 @@
 
 #include "error_message.hpp"
 
+#include <QApplication>
 #include <QMessageBox>
+#include <QObject>
+#include <QString>
+#include <QTextStream>
 
 #include "global_data.hpp"
 #include "headless.h"
-#include "system.hpp"
+#include "write_log.hpp"
 
 cErrorMessage *gErrorMessage = nullptr;
 

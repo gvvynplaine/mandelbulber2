@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018 Mandelbulber Team        §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -41,11 +41,15 @@ float AuxShadow(constant sClInConstants *consts, sRenderData *renderData, sShade
 	float dist;
 	float light;
 
-	float opacity;
 	float shadowTemp = 1.0f;
+
+	bool cloudMode = consts->params.cloudsEnable;
 
 	float DE_factor = consts->params.DEFactor;
 	if (consts->params.iterFogEnabled || consts->params.volumetricLightAnyEnabled) DE_factor = 1.0f;
+#ifdef CLOUDS
+	DE_factor = consts->params.DEFactor * consts->params.volumetricLightDEFactor;
+#endif
 
 #ifdef MC_SOFT_SHADOWS
 	float lightSize = sqrt(intensity) * consts->params.auxLightVisibilitySize;
@@ -56,8 +60,8 @@ float AuxShadow(constant sClInConstants *consts, sRenderData *renderData, sShade
 
 	float maxSoft = 0.0f;
 
-	const bool bSoft = !consts->params.iterFogEnabled && !consts->params.common.iterThreshMode
-										 && softRange > 0.0f
+	const bool bSoft = !cloudMode && !consts->params.iterFogEnabled
+										 && !consts->params.common.iterThreshMode && softRange > 0.0f
 										 && !(consts->params.monteCarloSoftShadows && consts->params.DOFMonteCarlo);
 
 #ifdef MC_SOFT_SHADOWS
@@ -70,6 +74,7 @@ float AuxShadow(constant sClInConstants *consts, sRenderData *renderData, sShade
 	lightVector += randomSphere;
 #endif // MC_SOFT_SHADOWS
 
+	float lastDistanceToClouds = 1e6f;
 	int count = 0;
 	float step = 0.0f;
 
@@ -80,7 +85,7 @@ float AuxShadow(constant sClInConstants *consts, sRenderData *renderData, sShade
 		float3 point2 = input->point + lightVector * i;
 
 		float dist_thresh;
-		if (consts->params.iterFogEnabled || consts->params.volumetricLightAnyEnabled)
+		if (consts->params.iterFogEnabled || consts->params.volumetricLightAnyEnabled || cloudMode)
 		{
 			dist_thresh = CalcDistThresh(point2, consts);
 		}
@@ -111,15 +116,28 @@ float AuxShadow(constant sClInConstants *consts, sRenderData *renderData, sShade
 		}
 
 #ifdef ITER_FOG
-		opacity =
-			IterOpacity(dist * DE_factor, outF.iters, consts->params.N, consts->params.iterFogOpacityTrim,
-				consts->params.iterFogOpacityTrimHigh, consts->params.iterFogOpacity);
+		{
+			float opacity =
+				IterOpacity(step, outF.iters, consts->params.N, consts->params.iterFogOpacityTrim,
+					consts->params.iterFogOpacityTrimHigh, consts->params.iterFogOpacity);
 
-		opacity *= (distance - i) / distance;
-		opacity = min(opacity, 1.0f);
-		iterFogSum = opacity + (1.0f - opacity) * iterFogSum;
-#else
-		opacity = 0.0f;
+			opacity *= (distance - i) / distance;
+			opacity = min(opacity, 1.0f);
+			iterFogSum = opacity + (1.0f - opacity) * iterFogSum;
+		}
+#endif
+
+#ifdef CLOUDS
+		{
+			float distanceToClouds = 0.0f;
+			float opacity = CloudOpacity(consts, renderData->perlinNoiseSeeds, point2, dist, dist_thresh,
+												&distanceToClouds)
+											* step;
+			lastDistanceToClouds = distanceToClouds;
+			opacity *= (distance - i) / distance;
+			opacity = min(opacity, 1.0f);
+			iterFogSum = opacity + (1.0f - opacity) * iterFogSum;
+		}
 #endif
 
 		shadowTemp = 1.0f - iterFogSum;
@@ -137,8 +155,7 @@ float AuxShadow(constant sClInConstants *consts, sRenderData *renderData, sShade
 			}
 			break;
 		}
-
-		step = dist * DE_factor;
+		step = min(dist, lastDistanceToClouds) * DE_factor;
 		step = max(step, 1e-6f);
 
 		count++;

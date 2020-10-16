@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -50,6 +50,9 @@
 #include "old_settings.hpp"
 #include "render_window.hpp"
 #include "settings.hpp"
+#include "system.hpp"
+#include "system_data.hpp"
+#include "system_directories.hpp"
 
 #include "qt/image_save_dialog.h"
 #include "qt/preview_file_dialog.h"
@@ -114,14 +117,17 @@ void RenderWindow::slotMenuAboutMandelbulber()
 	text += "version: <b>" + QString(MANDELBULBER_VERSION_STRING) + "</b>" + "<br>";
 	text += "<br>";
 	text += "Licence: GNU GPL version 3.0<br>";
-	text += "Copyright Ⓒ 2019<br>";
+	text += "Copyright Ⓒ 2020<br>";
 	text += "project leader: Krzysztof Marczak<br>";
-	text += "programmers:<br>";
-	text += "Krzysztof Marczak<br>";
-	text += "Sebastian Jennen<br>";
-	text += "Graeme McLaren<br>";
-	text += "Bernardo Martelli<br>";
-	text += "Robert Pancoast<br>";
+	text += "Project contributors:<br>";
+	text += "Sebastian Jennen, Graeme McLaren, Bernardo Martelli,<br>";
+	text += "Robert Pancoast, knighty, makemeunsee, Marius Schilder,<br>";
+	text += "Ryan Hitchman, Jeff Epler, Martin Reinecke, Quazgaa, Adrian Meyer<br>";
+	text += "github:rikardfalkeborn, github:orbitcowboy, github:brunetton,<br>";
+	text += "github:biberino, github:luchansky, github:jeroenrijckaert,<br>";
+	text += "github:KoviRobi, github:psyriccio, github:valera-rozuvan,<br>";
+	text += "github:probonopd, github:mia-0, github:gitter-badger, <br>";
+	text += "github:danuni, github:Starmute<br>";
 	text += "<br>";
 	text += "Thanks to many friends from Mandelbulber community<br>";
 	text +=
@@ -142,13 +148,14 @@ void RenderWindow::slotMenuAboutQt()
 
 void RenderWindow::slotMenuAboutManual()
 {
-	QString filename = systemData.docDir + "Mandelbulber_Manual.pdf";
+	// qDebug() << systemDirectories.docDir;
+	QString filename = systemDirectories.docDir + "Mandelbulber_Manual.pdf";
 	QDesktopServices::openUrl(QUrl::fromLocalFile(filename));
 }
 
 void RenderWindow::slotMenuAboutNews()
 {
-	QString filename = systemData.docDir + "NEWS";
+	QString filename = systemDirectories.docDir + "NEWS";
 
 	QFile f(filename);
 	QString text = "";
@@ -352,7 +359,7 @@ void RenderWindow::showDescriptionPopup()
 
 void RenderWindow::SaveSettingsToRecent(QString fileName)
 {
-	QFile recentFilesFile(systemData.GetRecentFilesListFile());
+	QFile recentFilesFile(systemDirectories.GetRecentFilesListFile());
 	QStringList recentFiles;
 	if (recentFilesFile.open(QFile::ReadOnly | QFile::Text))
 	{
@@ -382,7 +389,7 @@ void RenderWindow::slotMenuLoadExample()
 	dialog.setFileMode(QFileDialog::ExistingFile);
 	dialog.setNameFilter(tr("Fractals (*.txt *.fract)"));
 	dialog.setDirectory(QDir::toNativeSeparators(
-		systemData.sharedDir + QDir::separator() + "examples" + QDir::separator()));
+		systemDirectories.sharedDir + QDir::separator() + "examples" + QDir::separator()));
 	dialog.selectFile(QDir::toNativeSeparators(QFileInfo(systemData.lastSettingsFile).fileName()));
 	dialog.setAcceptMode(QFileDialog::AcceptOpen);
 	dialog.setWindowTitle(tr("Load example settings..."));
@@ -886,4 +893,14 @@ void RenderWindow::slotDetachMainImage()
 	{
 		gMainInterface->AttachMainImageWidget();
 	}
+}
+
+void RenderWindow::slotMenuRandomizeAll()
+{
+	gMainInterface->RandomizeLocalSettings(this);
+}
+
+void RenderWindow::slotCleanSettings()
+{
+	gMainInterface->CleanSettings();
 }

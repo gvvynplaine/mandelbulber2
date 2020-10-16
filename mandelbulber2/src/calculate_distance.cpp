@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -49,6 +49,7 @@
 #include "nine_fractals.hpp"
 #include "render_data.hpp"
 #include "texture_mapping.hpp"
+#include "write_log.hpp"
 
 using namespace std;
 
@@ -307,6 +308,7 @@ double CalculateDistanceSimple(const sParamRender &params, const cNineFractals &
 
 		Compute<fractal::calcModeDeltaDE1>(fractals, fractIn, &fractOut);
 		const double r = fractOut.z.Length();
+		CVector3 zFromIters = fractOut.z;
 		out->maxiter = fractOut.maxiter;
 		bool maxiter = fractOut.maxiter;
 		out->iters = fractOut.iters;
@@ -366,9 +368,16 @@ double CalculateDistanceSimple(const sParamRender &params, const cNineFractals &
 				distance = (fabs(rxy * z.y) / r) / (dr);
 				maxiter = false;
 			}
-			else if (fractals.GetDEFunctionType(forcedFormulaIndex) == fractal::dIFSDEFunction)
+			else if (fractals.GetDEFunctionType(forcedFormulaIndex) == fractal::customDEFunction)
 			{
 				distance = r; // FIXME: Can we calculate dIFS in deltaDE mode ???
+			}
+			else if (fractals.GetDEFunctionType(forcedFormulaIndex) == fractal::maxAxisDEFunction)
+			{
+				CVector3 absZ = fabs(zFromIters);
+				double maxZ = dMax(absZ.x, absZ.y, absZ.z);
+				double maxDr = dMax(fabs(dr1), fabs(dr2), fabs(dr3));
+				distance = 0.5 * maxZ / maxDr;
 			}
 		}
 		else
@@ -417,9 +426,9 @@ double CalculateDistanceSimple(const sParamRender &params, const cNineFractals &
 	return distance;
 }
 
-double CalculateDistanceMinPlane(const sParamRender &params, const cNineFractals &fractals,
-	const CVector3 planePoint, const CVector3 direction, const CVector3 orthDirection,
-	bool *stopRequest)
+double CalculateDistanceMinPlane(std::shared_ptr<const sParamRender> params,
+	std::shared_ptr<const cNineFractals> fractals, const CVector3 planePoint,
+	const CVector3 direction, const CVector3 orthDirection, bool *stopRequest)
 {
 	// the plane is defined by the 'planePoint' and the orthogogonal 'direction'
 	// the method will return the minimum distance from the plane to the fractal
@@ -445,7 +454,7 @@ double CalculateDistanceMinPlane(const sParamRender &params, const cNineFractals
 			if (i > 0) pointNext += transversalVect * distStep / 2.0;
 			const sDistanceIn in(pointNext, 0, false);
 			sDistanceOut out;
-			const double dist = CalculateDistance(params, fractals, in, &out);
+			const double dist = CalculateDistance(*params.get(), *fractals.get(), in, &out);
 			const double newDistStep = dist * detail * 0.5;
 			if (newDistStep < newDistStepMin || newDistStepMin == 0)
 			{

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,19 +34,20 @@
 
 #include "my_line_edit.h"
 
-#include <qapplication.h>
-
+#include <QApplication>
 #include <QByteArray>
+#include <QClipboard>
 #include <QLocale>
 #include <QMenu>
 #include <QSlider>
+#include <QWheelEvent>
 
 #include "frame_slider_popup.h"
 
 #include "src/animation_flight.hpp"
 #include "src/animation_keyframes.hpp"
 #include "src/common_math.h"
-#include "src/system.hpp"
+#include "src/system_data.hpp"
 
 MyLineEdit::MyLineEdit(QWidget *parent) : QLineEdit(parent), CommonMyWidgetWrapper(this)
 {
@@ -79,7 +80,7 @@ QString MyLineEdit::GetDefault()
 			char lastChar = (parameterName.at(parameterName.length() - 1)).toLatin1();
 			QString nameVect = parameterName.left(parameterName.length() - 2);
 			CVector3 val = parameterContainer->GetDefault<CVector3>(nameVect);
-			QString valS = QString("%L1").arg(val.itemByName(lastChar), 0, 'g', 16);
+			QString valS = QString("%L1").arg(val.itemByName(lastChar), 0, 'g', 15);
 			defaultText = valS;
 			gotDefault = true;
 		}
@@ -88,7 +89,7 @@ QString MyLineEdit::GetDefault()
 			char lastChar = (parameterName.at(parameterName.length() - 1)).toLatin1();
 			QString nameVect = parameterName.left(parameterName.length() - 2);
 			CVector4 val = parameterContainer->GetDefault<CVector4>(nameVect);
-			QString valS = QString("%L1").arg(val.itemByName(lastChar), 0, 'g', 16);
+			QString valS = QString("%L1").arg(val.itemByName(lastChar), 0, 'g', 15);
 			defaultText = valS;
 			gotDefault = true;
 		}
@@ -304,7 +305,7 @@ void MyLineEdit::focusInEvent(QFocusEvent *event)
 		int hOffset = height();
 
 		QSize minimumSize = slider->minimumSizeHint();
-		width = max(width, int(minimumSize.width() * 0.6));
+		width = std::max(width, int(minimumSize.width() * 0.6));
 
 		slider->adjustSize();
 		slider->setFixedWidth(width);
@@ -350,14 +351,14 @@ void MyLineEdit::slotSliderTimerUpdateValue()
 		{
 			double dDiff = iDiff / 1000.0;
 			double change = pow(10.0, dDiff * dDiff * sign);
-			const QString text = QString("%L1").arg(value * change, 0, 'g', 16);
+			const QString text = QString("%L1").arg(value * change, 0, 'g', 15);
 			setText(text);
 		}
 		else
 		{
 			double dDiff = abs(iDiff) / 33.0 - 15.0;
 			double change = pow(10.0, dDiff) * sign;
-			const QString text = QString("%L1").arg(value + change, 0, 'g', 16);
+			const QString text = QString("%L1").arg(value + change, 0, 'g', 15);
 			setText(text);
 		}
 		emit editingFinished();
@@ -379,7 +380,7 @@ void MyLineEdit::slotZeroValue()
 void MyLineEdit::slotDoubleValue()
 {
 	const double value = systemData.locale.toDouble(text());
-	const QString text = QString("%L1").arg(value * 2.0, 0, 'g', 16);
+	const QString text = QString("%L1").arg(value * 2.0, 0, 'g', 15);
 	setText(text);
 	emit returnPressed();
 }
@@ -387,7 +388,7 @@ void MyLineEdit::slotDoubleValue()
 void MyLineEdit::slotHalfValue()
 {
 	const double value = systemData.locale.toDouble(text());
-	const QString text = QString("%L1").arg(value * 0.5, 0, 'g', 16);
+	const QString text = QString("%L1").arg(value * 0.5, 0, 'g', 15);
 	setText(text);
 	emit returnPressed();
 }
@@ -395,7 +396,7 @@ void MyLineEdit::slotHalfValue()
 void MyLineEdit::slotRoundValue()
 {
 	const double value = systemData.locale.toDouble(text());
-	const QString text = QString("%L1").arg(MagicRound(value, 0.05), 0, 'g', 16);
+	const QString text = QString("%L1").arg(MagicRound(value, 0.05), 0, 'g', 15);
 	setText(text);
 	emit returnPressed();
 }
@@ -403,7 +404,7 @@ void MyLineEdit::slotRoundValue()
 void MyLineEdit::slotInvertSign()
 {
 	const double value = systemData.locale.toDouble(text());
-	const QString text = QString("%L1").arg(value * (-1.0), 0, 'g', 16);
+	const QString text = QString("%L1").arg(value * (-1.0), 0, 'g', 15);
 	setText(text);
 	emit returnPressed();
 }
@@ -422,7 +423,7 @@ void MyLineEdit::wheelEvent(QWheelEvent *event)
 
 		double multiplier = (1.0 + change / 10.0);
 
-		const QString text = QString("%L1").arg(value * multiplier, 0, 'g', 16);
+		const QString text = QString("%L1").arg(value * multiplier, 0, 'g', 15);
 		setText(text);
 		emit returnPressed();
 		event->accept();

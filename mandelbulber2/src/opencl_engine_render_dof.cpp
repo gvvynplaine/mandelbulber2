@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -45,7 +45,7 @@
 #include "parameters.hpp"
 #include "progress_text.hpp"
 #include "render_data.hpp"
-#include "system.hpp"
+#include "write_log.hpp"
 
 cOpenClEngineRenderDOF::cOpenClEngineRenderDOF(cOpenClHardware *hardware) : QObject(hardware)
 {
@@ -53,10 +53,10 @@ cOpenClEngineRenderDOF::cOpenClEngineRenderDOF(cOpenClHardware *hardware) : QObj
 	dofEnginePhase1.reset(new cOpenClEngineRenderDOFPhase1(hardware));
 	dofEnginePhase2.reset(new cOpenClEngineRenderDOFPhase2(hardware));
 
-	connect(dofEnginePhase1.data(),
+	connect(dofEnginePhase1.get(),
 		SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)), this,
 		SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)));
-	connect(dofEnginePhase2.data(),
+	connect(dofEnginePhase2.get(),
 		SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)), this,
 		SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)));
 
@@ -77,7 +77,8 @@ void cOpenClEngineRenderDOF::Reset()
 }
 
 bool cOpenClEngineRenderDOF::RenderDOF(const sParamRender *paramRender,
-	const cParameterContainer *params, cImage *image, bool *stopRequest, cRegion<int> screenRegion)
+	const std::shared_ptr<cParameterContainer> params, std::shared_ptr<cImage> image,
+	bool *stopRequest, cRegion<int> screenRegion)
 {
 	int numberOfPasses = paramRender->DOFNumberOfPasses;
 
@@ -128,7 +129,7 @@ bool cOpenClEngineRenderDOF::RenderDOF(const sParamRender *paramRender,
 		if (image->IsPreview())
 		{
 			WriteLog("image->ConvertTo8bit()", 2);
-			image->ConvertTo8bit();
+			image->ConvertTo8bitChar();
 			WriteLog("image->UpdatePreview()", 2);
 			image->UpdatePreview();
 			WriteLog("image->GetImageWidget()->update()", 2);
@@ -141,7 +142,7 @@ bool cOpenClEngineRenderDOF::RenderDOF(const sParamRender *paramRender,
 	emit updateProgressAndStatus(QObject::tr("OpenCL DOF"), QObject::tr("Sorting Z-Buffer"), 0.0);
 
 	quint64 numberOfPixels = quint64(screenRegion.height) * quint64(screenRegion.width);
-	cPostRenderingDOF::sSortZ<float> *tempSort = new cPostRenderingDOF::sSortZ<float>[numberOfPixels];
+	std::vector<cPostRenderingDOF::sSortZ<float>> tempSort(numberOfPixels);
 
 	{
 		quint64 index = 0;
@@ -161,7 +162,7 @@ bool cOpenClEngineRenderDOF::RenderDOF(const sParamRender *paramRender,
 	// sorting z-buffer
 	emit updateProgressAndStatus(QObject::tr("OpenCL DOF"), QObject::tr("Sorting Z-Buffer"), 0.0);
 
-	cPostRenderingDOF::QuickSortZBuffer(tempSort, 1, numberOfPixels - 1);
+	cPostRenderingDOF::QuickSortZBuffer(tempSort.data(), 1, numberOfPixels - 1);
 
 	for (int pass = 0; pass < numberOfPasses; pass++)
 	{
@@ -233,7 +234,7 @@ bool cOpenClEngineRenderDOF::RenderDOF(const sParamRender *paramRender,
 
 		if (!*stopRequest)
 		{
-			connect(dofEnginePhase2.data(), SIGNAL(updateImage()), this, SIGNAL(updateImage()));
+			connect(dofEnginePhase2.get(), SIGNAL(updateImage()), this, SIGNAL(updateImage()));
 			dofEnginePhase2->Lock();
 			dofEnginePhase2->SetParameters(paramRender, screenRegion);
 			if (dofEnginePhase2->LoadSourcesAndCompile(params))
@@ -245,7 +246,7 @@ bool cOpenClEngineRenderDOF::RenderDOF(const sParamRender *paramRender,
 				{
 					dofEnginePhase2->PreAllocateBuffers(params);
 					dofEnginePhase2->CreateCommandQueue();
-					result = dofEnginePhase2->Render(image, tempSort, stopRequest);
+					result = dofEnginePhase2->Render(image, tempSort.data(), stopRequest);
 				}
 				else
 				{
@@ -258,8 +259,6 @@ bool cOpenClEngineRenderDOF::RenderDOF(const sParamRender *paramRender,
 	} // next pass
 
 	emit updateProgressAndStatus(tr("OpenCL DOF finished"), progressText.getText(1.0), 1.0);
-
-	delete[] tempSort;
 
 	return result;
 }

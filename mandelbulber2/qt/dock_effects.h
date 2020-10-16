@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -54,10 +54,10 @@ public:
 	explicit cDockEffects(QWidget *parent = nullptr);
 	~cDockEffects() override;
 
-	void SynchronizeInterfaceBasicFogEnabled(cParameterContainer *par) const;
-	void SynchronizeInterfaceDOFEnabled(cParameterContainer *par) const;
-	void SynchronizeInterfaceLights(cParameterContainer *par) const;
-	void SynchronizeInterfaceRandomLights(cParameterContainer *par) const;
+	void SynchronizeInterfaceBasicFogEnabled(std::shared_ptr<cParameterContainer> par) const;
+	void SynchronizeInterfaceDOFEnabled(std::shared_ptr<cParameterContainer> par) const;
+	void SynchronizeInterfaceLights(std::shared_ptr<cParameterContainer> par) const;
+	void SynchronizeInterfaceRandomLights(std::shared_ptr<cParameterContainer> par) const;
 
 	double GetAuxLightManualPlacementDistance() const;
 	void SetAuxLightManualPlacementDistance(double dist) const;
@@ -79,6 +79,7 @@ private slots:
 	void slotChangedPlaceLightBehindObjects(int state);
 	void slotChangedEnableMCDOF(bool state);
 	void slotChangedEnableGI(int state);
+	void slotPressedButtonCloudsRandomize();
 
 private:
 	void ConnectSignals() const;

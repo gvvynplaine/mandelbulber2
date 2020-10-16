@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -36,7 +36,8 @@
 #define MANDELBULBER2_SRC_OPENCL_INPUT_OUTPUT_BUFFER_H_
 
 #ifdef USE_OPENCL
-#include <QtCore>
+
+#include <memory>
 
 #include "include_header_wrapper.hpp"
 
@@ -53,8 +54,8 @@ struct sClInputOutputBuffer
 	quint64 itemSize;
 	quint64 length;
 	QString name;
-	QSharedPointer<char> ptr;
-	QSharedPointer<cl::Buffer> clPtr;
+	std::shared_ptr<char> ptr;
+	std::shared_ptr<cl::Buffer> clPtr;
 };
 #endif // USE_OPENCL
 

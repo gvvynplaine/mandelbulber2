@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2019 Mandelbulber Team        §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2019-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -37,7 +37,6 @@
 
 #include <QTcpServer>
 #include <QTcpSocket>
-#include <QtCore>
 
 #include "netrender_transport.hpp"
 
@@ -49,7 +48,7 @@ class cNetRenderServer : public QObject
 {
 	Q_OBJECT
 public:
-	explicit cNetRenderServer();
+	explicit cNetRenderServer(QObject *parent);
 	~cNetRenderServer() override;
 	void SetServer(int _portNo);
 	void DeleteServer();
@@ -77,11 +76,11 @@ public:
 	// in cli mode this method enables waiting for the clients before start of rendering
 	bool WaitForAllClientsReady(double timeout);
 	// send parameters and textures to all clients and start rendering
-	void SetCurrentJob(const cParameterContainer &settings, const cFractalContainer &fractal,
-		QStringList listOfTextures);
+	void SetCurrentJob(std::shared_ptr<const cParameterContainer> settings,
+		std::shared_ptr<const cFractalContainer> fractal, QStringList listOfTextures);
 	// send parameters and start rendering animation from frame n
-	void SetCurrentAnimation(
-		const cParameterContainer &settings, const cFractalContainer &fractal, bool isFlight);
+	void SetCurrentAnimation(std::shared_ptr<const cParameterContainer> settings,
+		std::shared_ptr<const cFractalContainer> fractal, bool isFlight);
 	// send list of frames to render next
 	void SendFramesToDoList(int clientIndex, const QList<int> &frameNumbers);
 
@@ -137,7 +136,8 @@ public:
 		"normal_postfix", "specular_postfix", "diffuse_postfix", "world_postfix", "append_alpha_png",
 		"linear_colorspace", "jpeg_quality", "stereoscopic_in_separate_files",
 		"save_channels_in_separate_folders", "optional_image_channels_enabled",
-		"flight_animation_image_type", "keyframe_animation_image_type"};
+		"flight_animation_image_type", "keyframe_animation_image_type", "zbuffer_logarithmic",
+		"zbuffer_invert", "zbuffer_constant_range", "zbuffer_max_depth", "zbuffer_min_depth"};
 };
 
 #endif /* MANDELBULBER2_SRC_NETRENDER_SERVER_HPP_ */

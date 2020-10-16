@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2015-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2015-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -45,8 +45,10 @@
 #include "interface.hpp"
 #include "render_window.hpp"
 #include "settings.hpp"
-#include "system.hpp"
+#include "system_data.hpp"
+#include "system_directories.hpp"
 #include "texture.hpp"
+#include "write_log.hpp"
 
 cNetRender *gNetRender = nullptr;
 
@@ -55,13 +57,13 @@ cNetRender *gNetRender = nullptr;
 // TODO: to modify NetRender status table
 // TODO: progress bar in headless mode
 
-cNetRender::cNetRender() : QObject(nullptr)
+cNetRender::cNetRender(QObject *parent) : QObject(parent)
 {
 	deviceType = netRenderDevuceType_UNKNOWN;
 	status = netRenderSts_NEW;
 	isUsed = false;
 	isAnimation = false;
-	netRenderClient = new CNetRenderClient();
+	netRenderClient = new CNetRenderClient(this);
 
 	// client signals
 	connect(
@@ -77,7 +79,7 @@ cNetRender::cNetRender() : QObject(nullptr)
 	connect(this, &cNetRender::AddFileToSender, netRenderClient, &CNetRenderClient::AddFileToSender);
 
 	// server signals
-	netRenderServer = new cNetRenderServer();
+	netRenderServer = new cNetRenderServer(this);
 	connect(
 		netRenderServer, &cNetRenderServer::changeServerStatus, this, &cNetRender::serverStatusChanged);
 	connect(
@@ -135,14 +137,14 @@ void cNetRender::DeleteClient()
 	netRenderClient->DeleteClient();
 }
 
-void cNetRender::SetCurrentJob(
-	const cParameterContainer &settings, const cFractalContainer &fractal, QStringList listOfTextures)
+void cNetRender::SetCurrentJob(std::shared_ptr<const cParameterContainer> settings,
+	std::shared_ptr<const cFractalContainer> fractal, QStringList listOfTextures)
 {
 	netRenderServer->SetCurrentJob(settings, fractal, listOfTextures);
 }
 
-void cNetRender::SetCurrentAnimation(
-	const cParameterContainer &settings, const cFractalContainer &fractal, bool isFlight)
+void cNetRender::SetCurrentAnimation(std::shared_ptr<const cParameterContainer> settings,
+	std::shared_ptr<const cFractalContainer> fractal, bool isFlight)
 {
 	netRenderServer->SetCurrentAnimation(settings, fractal, isFlight);
 }
@@ -294,8 +296,8 @@ QString cNetRender::GetFileFromNetRender(QString requiredFileName, int frameInde
 
 	QByteArray hash = hashCrypt.result();
 	QString hashString = hash.toHex();
-	QString fileInCache = systemData.GetNetrenderFolder() + QDir::separator() + hashString + "."
-												+ QFileInfo(requiredFileName).suffix();
+	QString fileInCache = systemDirectories.GetNetrenderFolder() + QDir::separator() + hashString
+												+ "." + QFileInfo(requiredFileName).suffix();
 	if (QFile::exists(fileInCache))
 	{
 		return fileInCache;

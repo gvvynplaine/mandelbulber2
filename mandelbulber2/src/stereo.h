@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,6 +34,9 @@
 
 #ifndef MANDELBULBER2_SRC_STEREO_H_
 #define MANDELBULBER2_SRC_STEREO_H_
+
+#include <memory>
+#include <vector>
 
 #include "algebra.hpp"
 #include "color_structures.hpp"
@@ -80,8 +83,8 @@ public:
 	int GetNumberOfRepeats() const;
 	void WhichEyeForAnaglyph(enumEye *eye, int repeat) const;
 	cRegion<int> GetRegion(CVector2<int> imageResolution, enumEye eye) const;
-	void StoreImageInBuffer(cImage *image);
-	void MixImages(cImage *image) const;
+	void StoreImageInBuffer(std::shared_ptr<cImage> image);
+	void MixImages(std::shared_ptr<cImage> image) const;
 	void ForceEye(enumEye eye);
 	enumEye GetForcedEye() { return forceEye; }
 	void SwapEyes() { swapped = true; }
@@ -90,7 +93,7 @@ public:
 private:
 	bool swapped;
 	enumStereoMode stereoMode;
-	sRGB16 *imageBuffer;
+	std::vector<sRGB16> imageBuffer;
 	int imageBufferWidth;
 	int imageBufferHeight;
 	enumEye forceEye;

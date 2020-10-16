@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -69,6 +69,7 @@ private slots:
 	void on_listWidget_opencl_platform_list_currentRowChanged(int index);
 	void on_groupCheck_opencl_enabled_toggled(bool state);
 	void on_comboBox_opencl_device_type_currentIndexChanged(int index);
+	void on_pushButton_select_clang_format_path_clicked();
 #endif
 
 private:

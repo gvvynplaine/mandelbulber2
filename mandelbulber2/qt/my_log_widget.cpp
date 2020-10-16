@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -37,21 +37,23 @@
 
 #include "my_log_widget.h"
 
-#include "src/system.hpp"
+#include <QRegularExpression>
+#include <QTextStream>
+
+#include "src/system_data.hpp"
 
 MyLogWidget::MyLogWidget(QWidget *parent) : QPlainTextEdit(parent)
 {
 	setReadOnly(true);
 	initializedFromLogFile = false;
-	reBasic = new QRegularExpression("^(PID:) ([0-9]+), (time:) ([0-9.]+), (.*)");
-	reInnerType =
-		new QRegularExpression("^(Info|Debug|Warning|Critical|Error|NetRender|Gamepad)(.*)");
+	reBasic.reset(new QRegularExpression("^(PID:) ([0-9]+), (time:) ([0-9.]+), (.*)"));
+	reInnerType.reset(
+		new QRegularExpression("^(Info|Debug|Warning|Critical|Error|NetRender|Gamepad)(.*)"));
 }
 
 MyLogWidget::~MyLogWidget()
 {
-	delete reBasic;
-	delete reInnerType;
+	// nothing to delete
 }
 
 void MyLogWidget::appendMessage(const QString &text)

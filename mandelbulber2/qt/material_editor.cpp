@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -33,8 +33,6 @@
  */
 
 #include "material_editor.h"
-
-#include <QtCore>
 
 #include "ui_material_editor.h"
 
@@ -80,7 +78,7 @@ void cMaterialEditor::ConnectSignals()
 		ui->widget_material_preview, SIGNAL(materialChanged(int)), this, SIGNAL(materialChanged(int)));
 }
 
-void cMaterialEditor::AssignMaterial(cParameterContainer *params, int index)
+void cMaterialEditor::AssignMaterial(std::shared_ptr<cParameterContainer> params, int index)
 {
 	if (isMaterialAssigned)
 	{

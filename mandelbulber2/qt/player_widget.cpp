@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -42,13 +42,13 @@
 
 PlayerWidget::PlayerWidget(QWidget *parent) : QWidget(parent)
 {
-	infoLabel = new QLabel;
-	imageLabel = new QLabel;
-	playPauseButton = new QPushButton;
-	stopButton = new QPushButton;
+	infoLabel = new QLabel(this);
+	imageLabel = new QLabel(this);
+	playPauseButton = new QPushButton(this);
+	stopButton = new QPushButton(this);
 	positionSlider = new QSlider(Qt::Horizontal);
-	playTimer = new QTimer;
-	fpsSpinBox = new MyDoubleSpinBox;
+	playTimer = new QTimer(this);
+	fpsSpinBox = new MyDoubleSpinBox(this);
 
 	currentIndex = 0;
 	playTimer->setInterval(30);
@@ -63,7 +63,7 @@ PlayerWidget::PlayerWidget(QWidget *parent) : QWidget(parent)
 	fpsSpinBox->setDecimals(2);
 	fpsSpinBox->setValue(30);
 
-	QLabel *fpsLabel = new QLabel("FPS");
+	QLabel *fpsLabel = new QLabel("FPS", this);
 	QHBoxLayout *controlLayout = new QHBoxLayout;
 	controlLayout->setMargin(5);
 	controlLayout->addWidget(stopButton);
@@ -99,7 +99,6 @@ PlayerWidget::PlayerWidget(QWidget *parent) : QWidget(parent)
 PlayerWidget::~PlayerWidget()
 {
 	stop();
-	delete playTimer;
 }
 
 void PlayerWidget::SetFilePath(QString filePath)

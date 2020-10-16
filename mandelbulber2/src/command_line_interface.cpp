@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2015-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2015-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -37,6 +37,8 @@
 
 #include <ctime>
 
+#include <QList>
+
 #include "animation_frames.hpp"
 #include "error_message.hpp"
 #include "file_image.hpp"
@@ -52,12 +54,15 @@
 #include "opencl_hardware.h"
 #include "queue.hpp"
 #include "settings.hpp"
-#include "system.hpp"
+#include "system_data.hpp"
+#include "system_directories.hpp"
 #include "test.hpp"
+#include "write_log.hpp"
 
-cCommandLineInterface::cCommandLineInterface(QCoreApplication *qApplication)
+cCommandLineInterface::cCommandLineInterface(QCoreApplication *_qApplication)
 		: settingsSpecified(false)
 {
+	qApplication = _qApplication;
 	// text from http://sourceforge.net/projects/mandelbulber/
 	parser.setApplicationDescription(QCoreApplication::translate("main",
 		"Mandelbulber is an easy to use, "
@@ -403,31 +408,31 @@ void cCommandLineInterface::ProcessCLI() const
 		}
 		case modeFlight:
 		{
-			gMainInterface->headless = new cHeadless();
+			gMainInterface->headless = new cHeadless(gMainInterface);
 			gMainInterface->headless->RenderFlightAnimation();
 			break;
 		}
 		case modeKeyframe:
 		{
-			gMainInterface->headless = new cHeadless();
+			gMainInterface->headless = new cHeadless(gMainInterface);
 			gMainInterface->headless->RenderKeyframeAnimation();
 			break;
 		}
 		case modeStill:
 		{
-			gMainInterface->headless = new cHeadless();
+			gMainInterface->headless = new cHeadless(gMainInterface);
 			gMainInterface->headless->RenderStillImage(cliData.outputText, cliData.imageFileFormat);
 			break;
 		}
 		case modeQueue:
 		{
-			gMainInterface->headless = new cHeadless();
+			gMainInterface->headless = new cHeadless(gMainInterface);
 			gMainInterface->headless->RenderQueue();
 			break;
 		}
 		case modeVoxel:
 		{
-			gMainInterface->headless = new cHeadless();
+			gMainInterface->headless = new cHeadless(gMainInterface);
 			gMainInterface->headless->RenderVoxel(cliData.voxelFormat);
 			break;
 		}
@@ -523,7 +528,7 @@ void cCommandLineInterface::printOpenCLHelpAndExit()
 {
 	QTextStream out(stdout);
 #ifdef USE_OPENCL
-	gOpenCl = new cGlobalOpenCl();
+	gOpenCl = new cGlobalOpenCl(qApplication);
 	gOpenCl->InitPlatfromAndDevices();
 
 	out << QObject::tr(
@@ -619,13 +624,13 @@ void cCommandLineInterface::printParametersAndExit()
 		out << parameterName + "=" + defaultValue + "\n";
 	}
 
-	QList<QString> listOfFractalParameters = gParFractal->at(0).GetListOfParameters();
+	QList<QString> listOfFractalParameters = gParFractal->at(0)->GetListOfParameters();
 	out << cHeadless::colorize(QObject::tr("\nList of fractal parameters:\n"), cHeadless::ansiYellow,
 		cHeadless::noExplicitColor, true);
 
 	for (auto &parameterName : listOfFractalParameters)
 	{
-		const QString defaultValue = gParFractal->at(0).GetDefault<QString>(parameterName);
+		const QString defaultValue = gParFractal->at(0)->GetDefault<QString>(parameterName);
 		out << parameterName + "=" + defaultValue + "\n";
 	}
 
@@ -812,8 +817,8 @@ void cCommandLineInterface::handleQueue()
 	systemData.noGui = true;
 	try
 	{
-		gQueue = new cQueue(
-			gMainInterface, systemData.GetQueueFractlistFile(), systemData.GetQueueFolder(), nullptr);
+		gQueue = new cQueue(gMainInterface, systemDirectories.GetQueueFractlistFile(),
+			systemDirectories.GetQueueFolder(), gMainInterface);
 	}
 	catch (QString &ex)
 	{
@@ -836,7 +841,7 @@ void cCommandLineInterface::handleArgs()
 			if (!QFile::exists(filename))
 			{
 				// try to find settings in default settings path
-				filename = systemData.GetSettingsFolder() + QDir::separator() + filename;
+				filename = systemDirectories.GetSettingsFolder() + QDir::separator() + filename;
 			}
 			if (QFile::exists(filename))
 			{
@@ -877,8 +882,8 @@ void cCommandLineInterface::handleArgs()
 			systemData.noGui = true;
 			try
 			{
-				gQueue = new cQueue(
-					gMainInterface, systemData.GetQueueFractlistFile(), systemData.GetQueueFolder(), nullptr);
+				gQueue = new cQueue(gMainInterface, systemDirectories.GetQueueFractlistFile(),
+					systemDirectories.GetQueueFolder(), gMainInterface);
 			}
 			catch (QString &ex)
 			{
@@ -932,7 +937,7 @@ void cCommandLineInterface::handleOverrideParameters() const
 			if (fractalIndex >= 0 && fractalIndex < NUMBER_OF_FRACTALS)
 			{
 				gParFractal->at(fractalIndex)
-					.Set(overrideParameter[0].trimmed(), overrideParameter[1].trimmed());
+					->Set(overrideParameter[0].trimmed(), overrideParameter[1].trimmed());
 			}
 			else
 			{

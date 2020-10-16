@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-17 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -40,7 +40,7 @@
 #include "src/interface.hpp"
 #include "src/material.h"
 #include "src/material_item_model.h"
-#include "src/system.hpp"
+#include "src/system_data.hpp"
 
 cMaterialSelector::cMaterialSelector(QWidget *parent) : QWidget(parent), CommonMyWidgetWrapper(this)
 {
@@ -49,7 +49,7 @@ cMaterialSelector::cMaterialSelector(QWidget *parent) : QWidget(parent), CommonM
 	layout->setMargin(2);
 
 	materialWidget = new cMaterialWidget(this);
-	label = new QLabel(parent);
+	label = new QLabel(this);
 	label->setText("test");
 	layout->addWidget(materialWidget);
 	layout->addWidget(label);

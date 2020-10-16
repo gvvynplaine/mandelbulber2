@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,6 +35,8 @@
 #ifndef MANDELBULBER2_SRC_MATERIAL_H_
 #define MANDELBULBER2_SRC_MATERIAL_H_
 
+#include <memory>
+
 #include <QMap>
 
 #include "color_gradient.h"
@@ -50,11 +52,11 @@ class cMaterial
 {
 public:
 	cMaterial();
-	cMaterial(int _id, const cParameterContainer *materialParam, bool loadTextures, bool quiet,
-		bool useNetRender);
-	~cMaterial();
-	void setParameters(int _id, const cParameterContainer *materialParam, bool loadTextures,
+	cMaterial(int _id, const std::shared_ptr<cParameterContainer> materialParam, bool loadTextures,
 		bool quiet, bool useNetRender);
+	~cMaterial();
+	void setParameters(int _id, const std::shared_ptr<cParameterContainer> materialParam,
+		bool loadTextures, bool quiet, bool useNetRender);
 
 	static QString Name(const QString &name, int materialId)
 	{
@@ -153,7 +155,7 @@ public:
 	sFractalColoring fractalColoring;
 };
 
-void CreateMaterialsMap(const cParameterContainer *params, QMap<int, cMaterial> *materials,
-	bool loadTextures, bool quiet, bool useNetRender);
+void CreateMaterialsMap(const std::shared_ptr<cParameterContainer> params,
+	QMap<int, cMaterial> *materials, bool loadTextures, bool quiet, bool useNetRender);
 
 #endif /* MANDELBULBER2_SRC_MATERIAL_H_ */

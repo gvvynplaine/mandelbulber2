@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -37,12 +37,14 @@
 #include "object_data.hpp"
 #include "parameters.hpp"
 
-sParamRender::sParamRender(const cParameterContainer *container, QVector<cObjectData> *objectData)
+sParamRender::sParamRender(
+	const std::shared_ptr<cParameterContainer> container, QVector<cObjectData> *objectData)
 		: primitives(container, objectData)
 {
 	advancedQuality = container->Get<bool>("advanced_quality");
 	absMaxMarchingStep = container->Get<double>("abs_max_marching_step");
 	absMinMarchingStep = container->Get<double>("abs_min_marching_step");
+	allPrimitivesInvisibleAlpha = container->Get<bool>("all_primitives_invisible_alpha");
 	antialiasingAdaptive = container->Get<bool>("antialiasing_adaptive");
 	antialiasingEnabled = container->Get<bool>("antialiasing_enabled");
 	antialiasingOclDepth = container->Get<int>("antialiasing_ocl_depth");
@@ -80,6 +82,26 @@ sParamRender::sParamRender(const cParameterContainer *container, QVector<cObject
 	booleanOperatorsEnabled = container->Get<bool>("boolean_operators");
 	camera = container->Get<CVector3>("camera");
 	cameraDistanceToTarget = container->Get<double>("camera_distance_to_target");
+	cloudsAmbientLight = container->Get<double>("clouds_ambient_light");
+	cloudsCastShadows = container->Get<bool>("clouds_cast_shadows");
+	cloudsCenter = container->Get<CVector3>("clouds_center");
+	cloudsColor = toRGBFloat(container->Get<sRGB>("clouds_color"));
+	cloudsDEMultiplier = container->Get<double>("clouds_DE_multiplier");
+	cloudsDensity = container->Get<double>("clouds_density");
+	cloudsDEApproaching = container->Get<double>("clouds_DE_approaching");
+	cloudsDetailAccuracy = container->Get<double>("clouds_detail_accuracy");
+	cloudsDistance = container->Get<double>("clouds_distance");
+	cloudsDistanceLayer = container->Get<double>("clouds_distance_layer");
+	cloudsDistanceMode = container->Get<bool>("clouds_distance_mode");
+	cloudsEnable = container->Get<bool>("clouds_enable");
+	cloudsLightsBoost = container->Get<double>("clouds_lights_boost");
+	cloudsPeriod = container->Get<double>("clouds_period");
+	cloudsPlaneShape = container->Get<bool>("clouds_plane_shape");
+	cloudsHeight = container->Get<double>("clouds_height");
+	cloudsIterations = container->Get<int>("clouds_noise_iterations");
+	cloudsOpacity = container->Get<double>("clouds_opacity");
+	cloudsRandomSeed = container->Get<int>("clouds_random_seed");
+	cloudsRotation = container->Get<CVector3>("clouds_rotation");
 	constantDEThreshold = container->Get<bool>("constant_DE_threshold");
 	constantFactor = container->Get<double>("fractal_constant_factor");
 	DEFactor = container->Get<double>("DE_factor");
@@ -152,6 +174,7 @@ sParamRender::sParamRender(const cParameterContainer *container, QVector<cObject
 	mainLightAlpha = container->Get<double>("main_light_alpha");
 	mainLightBeta = container->Get<double>("main_light_beta");
 	mainLightColour = toRGBFloat(container->Get<sRGB>("main_light_colour"));
+	mainLightContourSharpness = container->Get<double>("main_light_contour_sharpness");
 	mainLightEnable = container->Get<bool>("main_light_enable");
 	mainLightIntensity = container->Get<float>("main_light_intensity");
 	mainLightPositionAsRelative = container->Get<bool>("main_light_position_relative");
@@ -159,6 +182,7 @@ sParamRender::sParamRender(const cParameterContainer *container, QVector<cObject
 	mainLightVisibilitySize = container->Get<double>("main_light_visibility_size");
 	minN = container->Get<int>("minN");
 	monteCarloSoftShadows = container->Get<bool>("MC_soft_shadows_enable");
+	monteCarloGIRadianceLimit = container->Get<float>("MC_GI_radiance_limit");
 	monteCarloGIVolumetric = container->Get<bool>("MC_global_illumination_volumetric");
 	N = container->Get<int>("N");
 	penetratingLights = container->Get<bool>("penetrating_lights");
@@ -202,6 +226,7 @@ sParamRender::sParamRender(const cParameterContainer *container, QVector<cObject
 	volumetricLightDEFactor = container->Get<double>("volumetric_light_DE_Factor");
 
 	mRotBackgroundRotation.SetRotation(backgroundRotation * M_PI / 180.0);
+	mRotCloudsRotation.SetRotation2(cloudsRotation * M_PI / 180.0);
 
 	for (int i = 0; i < 4; ++i)
 	{

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2015-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2015-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -37,7 +37,6 @@
 
 #include <QTcpServer>
 #include <QTcpSocket>
-#include <QtCore>
 
 #include "fractal_container.hpp"
 #include "netrender_client.hpp"
@@ -52,7 +51,7 @@ class cNetRender : public QObject
 {
 	Q_OBJECT
 public:
-	explicit cNetRender();
+	explicit cNetRender(QObject *parent);
 	~cNetRender() override;
 
 	//--------------- enumerations ---------------------
@@ -143,11 +142,11 @@ private:
 public slots:
 	//++++++++++++++++++ Server related  +++++++++++++++++
 	// send parameters and textures to all clients and start rendering
-	void SetCurrentJob(const cParameterContainer &settings, const cFractalContainer &fractal,
-		QStringList listOfTextures);
+	void SetCurrentJob(std::shared_ptr<const cParameterContainer> settings,
+		std::shared_ptr<const cFractalContainer> fractal, QStringList listOfTextures);
 	// send parameters and start rendering animation
-	void SetCurrentAnimation(
-		const cParameterContainer &settings, const cFractalContainer &fractal, bool isFlight);
+	void SetCurrentAnimation(std::shared_ptr<const cParameterContainer> settings,
+		std::shared_ptr<const cFractalContainer> fractal, bool isFlight);
 	// send list of already rendered lines
 	void SendToDoList(int clientIndex, const QList<int> &done); // send list of already rendered lines
 	// send message to all clients to stop rendering

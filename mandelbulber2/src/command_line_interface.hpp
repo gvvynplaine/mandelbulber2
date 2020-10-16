@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2015-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2015-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,7 +34,11 @@
 
 #ifndef MANDELBULBER2_SRC_COMMAND_LINE_INTERFACE_HPP_
 #define MANDELBULBER2_SRC_COMMAND_LINE_INTERFACE_HPP_
-#include <QtCore>
+
+#include <QCommandLineParser>
+#include <QString>
+
+class QCoreApplication;
 
 class cCommandLineInterface
 {
@@ -92,7 +96,7 @@ private:
 	// arguments to cause print and exit
 	[[noreturn]] static void printExampleHelpAndExit();
 	[[noreturn]] static void printInputHelpAndExit();
-	[[noreturn]] static void printOpenCLHelpAndExit();
+	[[noreturn]] void printOpenCLHelpAndExit();
 	[[noreturn]] static void printParametersAndExit();
 	[[noreturn]] static void runTestCasesAndExit();
 	[[noreturn]] void runBenchmarksAndExit();
@@ -149,6 +153,7 @@ private:
 	QStringList args;
 	cliOperationalMode cliOperationalMode;
 	bool settingsSpecified;
+	QCoreApplication *qApplication;
 };
 
 #endif /* MANDELBULBER2_SRC_COMMAND_LINE_INTERFACE_HPP_ */

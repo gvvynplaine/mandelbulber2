@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,9 +35,6 @@
 #include "cimage.hpp"
 
 #include <qpainter.h>
-
-#include <QtCore>
-#include <QtGlobal>
 
 #include "common_math.h"
 cImage::cImage(int w, int h, bool _allocLater)
@@ -356,7 +353,7 @@ void cImage::SetImageParameters(sImageAdjustments adjustments)
 	CalculateGammaTable();
 }
 
-quint8 *cImage::ConvertTo8bit()
+quint8 *cImage::ConvertTo8bitChar()
 {
 	for (quint64 i = 0; i < quint64(width) * quint64(height); i++)
 	{
@@ -367,7 +364,7 @@ quint8 *cImage::ConvertTo8bit()
 	return reinterpret_cast<quint8 *>(image8.data());
 }
 
-quint8 *cImage::ConvertTo8bit(const QList<QRect> *list)
+quint8 *cImage::ConvertTo8bitCharFromList(const QList<QRect> *list)
 {
 	for (auto rect : *list)
 	{
@@ -387,16 +384,16 @@ quint8 *cImage::ConvertTo8bit(const QList<QRect> *list)
 	return reinterpret_cast<quint8 *>(image8.data());
 }
 
-quint8 *cImage::ConvertAlphaTo8bit()
+std::vector<quint8> &cImage::ConvertAlphaTo8bit()
 {
 	for (quint64 i = 0; i < quint64(width) * quint64(height); i++)
 	{
 		alphaBuffer8[i] = alphaBuffer16[i] / 256;
 	}
-	return alphaBuffer8.data();
+	return alphaBuffer8;
 }
 
-quint8 *cImage::ConvertGenericRGBTo8bit(std::vector<sRGBFloat> &from, std::vector<sRGB8> &to)
+quint8 *cImage::ConvertGenericRGBTo8bitChar(std::vector<sRGBFloat> &from, std::vector<sRGB8> &to)
 {
 	for (quint64 i = 0; i < quint64(width) * quint64(height); i++)
 	{
@@ -407,7 +404,7 @@ quint8 *cImage::ConvertGenericRGBTo8bit(std::vector<sRGBFloat> &from, std::vecto
 	return reinterpret_cast<quint8 *>(to.data());
 }
 
-quint8 *cImage::ConvertGenericRGBTo16bit(std::vector<sRGBFloat> &from, std::vector<sRGB16> &to)
+quint8 *cImage::ConvertGenericRGBTo16bitWord(std::vector<sRGBFloat> &from, std::vector<sRGB16> &to)
 {
 	for (quint64 i = 0; i < quint64(width) * quint64(height); i++)
 	{
@@ -1057,7 +1054,7 @@ void cImage::NullPostEffect(const QList<QRect> *list)
 	}
 }
 
-void cImage::GetStereoLeftRightImages(cImage *left, cImage *right)
+void cImage::GetStereoLeftRightImages(std::shared_ptr<cImage> left, std::shared_ptr<cImage> right)
 {
 	if (isStereoLeftRight && left && right)
 	{
@@ -1128,4 +1125,54 @@ void cImage::GetStereoLeftRightImages(cImage *left, cImage *right)
 			}
 		}
 	}
+}
+
+double cImage::VisualCompare(std::shared_ptr<cImage> refImage, bool checkIfBlank)
+{
+	ConvertTo8bitChar();
+	refImage->ConvertTo8bitChar();
+
+	int min = 255 * 3;
+	int max = 0;
+
+	int w = GetWidth();
+	int h = GetHeight();
+	int numberOfPixels = w * h;
+
+	if (w != refImage->GetWidth() || h != refImage->GetHeight())
+	{
+		qCritical() << "cImage::VisualCompare(): images have different rosolutions!";
+		return 0.0;
+	}
+
+	double totalDiff = 0.0;
+
+	for (int y = 2; y < h - 2; y++)
+	{
+		for (int x = 2; x < w - 2; x++)
+		{
+			sRGB8 pixel1 = GetPixelImage8(x, y);
+			sRGB8 pixel2 = refImage->GetPixelImage8(x, y);
+			double rDiffR = double(pixel1.R) - pixel2.R;
+			double rDiffG = double(pixel1.G) - pixel2.G;
+			double rDiffB = double(pixel1.B) - pixel2.B;
+			double diff = rDiffR * rDiffR + rDiffG * rDiffG + rDiffB * rDiffB;
+			totalDiff += diff;
+
+			min = qMin(min, pixel1.R + pixel1.G + pixel1.B);
+			max = qMax(max, pixel1.R + pixel1.G + pixel1.B);
+		}
+	}
+	double diffPerPixel = totalDiff / numberOfPixels;
+
+	if (checkIfBlank)
+	{
+		if (min > 245 * 3 || max < 5 * 10 || max - min < 5)
+		{
+			diffPerPixel = 0;
+			// qDebug() << "blank image";
+		}
+	}
+
+	return diffPerPixel;
 }

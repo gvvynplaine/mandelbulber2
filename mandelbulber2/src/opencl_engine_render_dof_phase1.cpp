@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -41,6 +41,9 @@
 #include "opencl_hardware.h"
 #include "parameters.hpp"
 #include "progress_text.hpp"
+#include "system_data.hpp"
+#include "system_directories.hpp"
+#include "write_log.hpp"
 
 cOpenClEngineRenderDOFPhase1::cOpenClEngineRenderDOFPhase1(cOpenClHardware *_hardware)
 		: cOpenClEngine(_hardware)
@@ -86,14 +89,15 @@ void cOpenClEngineRenderDOFPhase1::SetParameters(
 	definesCollector.clear();
 }
 
-bool cOpenClEngineRenderDOFPhase1::LoadSourcesAndCompile(const cParameterContainer *params)
+bool cOpenClEngineRenderDOFPhase1::LoadSourcesAndCompile(
+	std::shared_ptr<const cParameterContainer> params, QString *compilerErrorOutput)
 {
 	programsLoaded = false;
 	readyForRendering = false;
 	emit updateProgressAndStatus(
 		tr("OpenCL DOF - initializing"), tr("Compiling sources for DOF phase 1"), 0.0);
 
-	QString openclPath = systemData.sharedDir + "opencl" + QDir::separator();
+	QString openclPath = systemDirectories.sharedDir + "opencl" + QDir::separator();
 	QString openclEnginePath = openclPath + "engines" + QDir::separator();
 
 	QByteArray programEngine;
@@ -120,7 +124,7 @@ bool cOpenClEngineRenderDOFPhase1::LoadSourcesAndCompile(const cParameterContain
 
 	QElapsedTimer timer;
 	timer.start();
-	if (Build(programEngine, &errorString))
+	if (Build(programEngine, &errorString, false))
 	{
 		programsLoaded = true;
 	}
@@ -129,13 +133,17 @@ bool cOpenClEngineRenderDOFPhase1::LoadSourcesAndCompile(const cParameterContain
 		programsLoaded = false;
 		WriteLog(errorString, 0);
 	}
+
+	if (compilerErrorOutput) *compilerErrorOutput = errorString;
+
 	WriteLogDouble(
 		"cOpenClEngineRenderDOFPhase1: Opencl DOF build time [s]", timer.nsecsElapsed() / 1.0e9, 2);
 
 	return programsLoaded;
 }
 
-void cOpenClEngineRenderDOFPhase1::RegisterInputOutputBuffers(const cParameterContainer *params)
+void cOpenClEngineRenderDOFPhase1::RegisterInputOutputBuffers(
+	std::shared_ptr<const cParameterContainer> params)
 {
 	Q_UNUSED(params);
 	inputBuffers[0] << sClInputOutputBuffer(sizeof(cl_float), numberOfPixels, "z-buffer");
@@ -179,7 +187,7 @@ bool cOpenClEngineRenderDOFPhase1::ProcessQueue(
 	return true;
 }
 
-bool cOpenClEngineRenderDOFPhase1::Render(cImage *image, bool *stopRequest)
+bool cOpenClEngineRenderDOFPhase1::Render(std::shared_ptr<cImage> image, bool *stopRequest)
 {
 	if (programsLoaded)
 	{
@@ -208,13 +216,13 @@ bool cOpenClEngineRenderDOFPhase1::Render(cImage *image, bool *stopRequest)
 			for (quint64 x = 0; x < width; x++)
 			{
 				quint64 i = x + y * width;
-				reinterpret_cast<cl_float *>(inputBuffers[0][zBufferIndex].ptr.data())[i] =
+				reinterpret_cast<cl_float *>(inputBuffers[0][zBufferIndex].ptr.get())[i] =
 					image->GetPixelZBuffer(imageRegion.x1 + x, imageRegion.y1 + y);
 
 				sRGBFloat imagePixel = image->GetPixelPostImage(imageRegion.x1 + x, imageRegion.y1 + y);
 
 				float alpha = image->GetPixelAlpha(imageRegion.x1 + x, imageRegion.y1 + y) / 65535.0f;
-				reinterpret_cast<cl_float4 *>(inputBuffers[0][imageIndex].ptr.data())[i] =
+				reinterpret_cast<cl_float4 *>(inputBuffers[0][imageIndex].ptr.get())[i] =
 					cl_float4{{imagePixel.R, imagePixel.G, imagePixel.B, alpha}};
 			}
 		}
@@ -230,8 +238,8 @@ bool cOpenClEngineRenderDOFPhase1::Render(cImage *image, bool *stopRequest)
 				quint64 jobY = gridY * optimalJob.stepSizeY;
 				quint64 pixelsLeftX = width - jobX;
 				quint64 pixelsLeftY = height - jobY;
-				quint64 jobWidth2 = min(optimalJob.stepSizeX, pixelsLeftX);
-				quint64 jobHeight2 = min(optimalJob.stepSizeY, pixelsLeftY);
+				quint64 jobWidth2 = qMin(optimalJob.stepSizeX, pixelsLeftX);
+				quint64 jobHeight2 = qMin(optimalJob.stepSizeY, pixelsLeftY);
 				if (jobHeight2 <= 0) continue;
 				if (jobWidth2 <= 0) continue;
 
@@ -258,7 +266,7 @@ bool cOpenClEngineRenderDOFPhase1::Render(cImage *image, bool *stopRequest)
 						quint64 yy = y + imageRegion.y1;
 
 						cl_float4 pixelCl = reinterpret_cast<cl_float4 *>(
-							outputBuffers[0][outputIndex].ptr.data())[x + y * jobWidth2];
+							outputBuffers[0][outputIndex].ptr.get())[x + y * jobWidth2];
 						sRGBFloat pixel = {pixelCl.s[0], pixelCl.s[1], pixelCl.s[2]};
 						quint16 alpha = quint16(pixelCl.s[3] * 65535);
 
@@ -285,7 +293,7 @@ bool cOpenClEngineRenderDOFPhase1::Render(cImage *image, bool *stopRequest)
 			if (image->IsPreview())
 			{
 				WriteLog("image->ConvertTo8bit()", 2);
-				image->ConvertTo8bit();
+				image->ConvertTo8bitChar();
 				WriteLog("image->UpdatePreview()", 2);
 				image->UpdatePreview();
 				WriteLog("image->GetImageWidget()->update()", 2);

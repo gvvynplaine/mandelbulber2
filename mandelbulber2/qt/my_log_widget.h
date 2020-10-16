@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -38,9 +38,9 @@
 #ifndef MANDELBULBER2_QT_MY_LOG_WIDGET_H_
 #define MANDELBULBER2_QT_MY_LOG_WIDGET_H_
 
+#include <memory>
+
 #include <QPlainTextEdit>
-#include <QtCore>
-#include <QtGui>
 
 class MyLogWidget : public QPlainTextEdit
 {
@@ -56,8 +56,8 @@ public slots:
 
 private:
 	bool initializedFromLogFile;
-	QRegularExpression *reBasic;
-	QRegularExpression *reInnerType;
+	std::unique_ptr<QRegularExpression> reBasic;
+	std::unique_ptr<QRegularExpression> reInnerType;
 
 	QString formatLine(const QString &text) const;
 };

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -37,27 +37,31 @@
 
 #include "animation_frames.hpp"
 
+#include <memory>
+
+#include <QDir>
+
 #include "audio_track.h"
 #include "audio_track_collection.h"
 #include "fractal_container.hpp"
 #include "initparameters.hpp"
 #include "system.hpp"
 
-cAnimationFrames *gAnimFrames = nullptr;
+std::shared_ptr<cAnimationFrames> gAnimFrames;
 
 cAnimationFrames::cAnimationFrames() = default;
 
 cAnimationFrames::~cAnimationFrames() = default;
 
-void cAnimationFrames::AddFrame(
-	const cParameterContainer &params, const cFractalContainer &fractal, int index)
+void cAnimationFrames::AddFrame(const std::shared_ptr<cParameterContainer> params,
+	const std::shared_ptr<cFractalContainer> fractal, int index)
 {
 	sAnimationFrame frame;
 
 	for (auto &parameterDescription : listOfParameters)
 	{
-		const cParameterContainer *container =
-			ContainerSelector(parameterDescription.containerName, &params, &fractal);
+		std::shared_ptr<cParameterContainer> container =
+			ContainerSelector(parameterDescription.containerName, params, fractal);
 
 		if (container)
 		{
@@ -91,8 +95,8 @@ void cAnimationFrames::AddFrame(
 	frames.insert(indexTemp, frame);
 }
 
-void cAnimationFrames::AddAnimatedParameter(
-	const QString &parameterName, const cOneParameter &defaultValue, cParameterContainer *params)
+void cAnimationFrames::AddAnimatedParameter(const QString &parameterName,
+	const cOneParameter &defaultValue, std::shared_ptr<cParameterContainer> params)
 {
 	if (IndexOnList(parameterName, defaultValue.GetOriginalContainerName()) == -1)
 	{
@@ -120,21 +124,23 @@ void cAnimationFrames::AddAnimatedParameter(
 	}
 }
 
-bool cAnimationFrames::AddAnimatedParameter(
-	const QString &fullParameterName, cParameterContainer *param, const cFractalContainer *fractal)
+bool cAnimationFrames::AddAnimatedParameter(const QString &fullParameterName,
+	std::shared_ptr<cParameterContainer> param, std::shared_ptr<cFractalContainer> fractal)
 {
 	const int firstUnderscore = fullParameterName.indexOf('_');
 	const QString containerName = fullParameterName.left(firstUnderscore);
 	const QString parameterName = fullParameterName.mid(firstUnderscore + 1);
 
-	const cParameterContainer *container = ContainerSelector(containerName, param, fractal);
+	const std::shared_ptr<cParameterContainer> container =
+		ContainerSelector(containerName, param, fractal);
 	if (container)
 	{
 		cOneParameter parameter = container->GetAsOneParameter(parameterName);
 		if (parameter.IsEmpty())
 		{
 			qWarning() << "cAnimationFrames::AddAnimatedParameter(const QString &fullParameterName, "
-										"const cParameterContainer *param, const cFractalContainer *fractal): unknown "
+										"const std::shared_ptr<cParameterContainer> param, const "
+										"std::shared_ptr<cFractalContainer> fractal): unknown "
 										"parameter"
 								 << fullParameterName;
 			return false;
@@ -148,14 +154,15 @@ bool cAnimationFrames::AddAnimatedParameter(
 	else
 	{
 		qCritical() << "cAnimationFrames::AddAnimatedParameter(const QString &fullParameterName, const "
-									 "cParameterContainer *param, const cFractalContainer *fractal): Wrong container "
+									 "std::shared_ptr<cParameterContainer> param, const "
+									 "std::shared_ptr<cFractalContainer> fractal): Wrong container "
 									 "name: "
 								<< containerName;
 		return false;
 	}
 }
 
-void cAnimationFrames::RegenerateAudioTracks(cParameterContainer *param)
+void cAnimationFrames::RegenerateAudioTracks(std::shared_ptr<cParameterContainer> param)
 {
 	for (auto &parameterDescription : listOfParameters)
 	{
@@ -166,7 +173,7 @@ void cAnimationFrames::RegenerateAudioTracks(cParameterContainer *param)
 	audioTracks.LoadAllAudioFiles(param);
 }
 
-void cAnimationFrames::RefreshAllAudioTracks(cParameterContainer *param)
+void cAnimationFrames::RefreshAllAudioTracks(std::shared_ptr<cParameterContainer> param)
 {
 	audioTracks.RefreshAllAudioTracks(param);
 }
@@ -202,10 +209,11 @@ int cAnimationFrames::IndexOnList(QString parameterName, QString containerName)
 	return index;
 }
 
-const cParameterContainer *cAnimationFrames::ContainerSelector(
-	QString containerName, const cParameterContainer *params, const cFractalContainer *fractal)
+std::shared_ptr<const cParameterContainer> cAnimationFrames::ContainerSelector(
+	QString containerName, std::shared_ptr<const cParameterContainer> params,
+	std::shared_ptr<const cFractalContainer> fractal)
 {
-	const cParameterContainer *container = nullptr;
+	std::shared_ptr<const cParameterContainer> container;
 	if (containerName == "main")
 	{
 		container = params;
@@ -213,14 +221,15 @@ const cParameterContainer *cAnimationFrames::ContainerSelector(
 	else if (containerName.indexOf("fractal") >= 0)
 	{
 		const int index = containerName.rightRef(1).toInt();
-		if (index < 4)
+		if (index < NUMBER_OF_FRACTALS)
 		{
-			container = &fractal->at(index);
+			container = fractal->at(index);
 		}
 		else
 		{
 			qWarning() << "cAnimationFrames::ContainerSelector(QString containerName, const "
-										"cParameterContainer *params, const cFractalContainer *fractal): wrong fractal "
+										"std::shared_ptr<cParameterContainer> params, const "
+										"std::shared_ptr<cFractalContainer> fractal): wrong fractal "
 										"container index"
 								 << containerName << index;
 		}
@@ -228,7 +237,8 @@ const cParameterContainer *cAnimationFrames::ContainerSelector(
 	else
 	{
 		qWarning() << "cAnimationFrames::ContainerSelector(QString containerName, const "
-									"cParameterContainer *params, const cFractalContainer *fractal): wrong container "
+									"std::shared_ptr<cParameterContainer> params, const "
+									"std::shared_ptr<cFractalContainer> fractal): wrong container "
 									"name"
 							 << containerName;
 	}
@@ -236,10 +246,10 @@ const cParameterContainer *cAnimationFrames::ContainerSelector(
 	return container;
 }
 
-cParameterContainer *cAnimationFrames::ContainerSelector(
-	QString containerName, cParameterContainer *params, cFractalContainer *fractal)
+std::shared_ptr<cParameterContainer> cAnimationFrames::ContainerSelector(QString containerName,
+	std::shared_ptr<cParameterContainer> params, std::shared_ptr<cFractalContainer> fractal)
 {
-	cParameterContainer *container = nullptr;
+	std::shared_ptr<cParameterContainer> container;
 	if (containerName == "main" || containerName == "material")
 	{
 		container = params;
@@ -247,14 +257,15 @@ cParameterContainer *cAnimationFrames::ContainerSelector(
 	else if (containerName.indexOf("fractal") >= 0)
 	{
 		const int index = containerName.rightRef(1).toInt();
-		if (index < 4)
+		if (index < NUMBER_OF_FRACTALS)
 		{
-			container = &fractal->at(index);
+			container = fractal->at(index);
 		}
 		else
 		{
 			qWarning() << "cAnimationFrames::ContainerSelector(QString containerName, "
-										"cParameterContainer *params, cFractalContainer *fractal): wrong fractal "
+										"std::shared_ptr<cParameterContainer> params, "
+										"std::shared_ptr<cFractalContainer> fractal): wrong fractal "
 										"container index"
 								 << containerName << index;
 		}
@@ -262,7 +273,7 @@ cParameterContainer *cAnimationFrames::ContainerSelector(
 	else
 	{
 		qWarning() << "cAnimationFrames::ContainerSelector(QString containerName, cParameterContainer "
-									"*params, cFractalContainer *fractal): wrong container name"
+									"*params, std::shared_ptr<cFractalContainer> fractal): wrong container name"
 							 << containerName;
 	}
 
@@ -282,8 +293,8 @@ cAnimationFrames::sAnimationFrame cAnimationFrames::GetFrame(int index) const
 	}
 }
 
-void cAnimationFrames::GetFrameAndConsolidate(
-	int index, cParameterContainer *params, cFractalContainer *fractal)
+void cAnimationFrames::GetFrameAndConsolidate(int index,
+	std::shared_ptr<cParameterContainer> params, std::shared_ptr<cFractalContainer> fractal)
 {
 	if (index >= 0 && index < frames.count())
 	{
@@ -291,7 +302,7 @@ void cAnimationFrames::GetFrameAndConsolidate(
 
 		for (auto &listOfParameter : listOfParameters)
 		{
-			cParameterContainer *container =
+			std::shared_ptr<cParameterContainer> container =
 				ContainerSelector(listOfParameter.containerName, params, fractal);
 			const QString parameterName = listOfParameter.parameterName;
 			const cOneParameter oneParameter =
@@ -347,7 +358,7 @@ void cAnimationFrames::AddFrame(const sAnimationFrame &frame)
 }
 
 void cAnimationFrames::AddAudioParameter(const QString &parameterName, enumVarType paramType,
-	const QString originalContainerName, cParameterContainer *params)
+	const QString originalContainerName, std::shared_ptr<cParameterContainer> params)
 {
 
 	setAudioParameterPrefix();
@@ -376,7 +387,7 @@ void cAnimationFrames::AddAudioParameter(const QString &parameterName, enumVarTy
 }
 
 void cAnimationFrames::RemoveAudioParameter(
-	const sParameterDescription &parameter, cParameterContainer *params)
+	const sParameterDescription &parameter, std::shared_ptr<cParameterContainer> params)
 {
 	if (!params) params = gPar;
 	const QString fullParameterName = parameter.containerName + "_" + parameter.parameterName;
@@ -404,13 +415,13 @@ void cAnimationFrames::RemoveAudioParameter(
 	}
 }
 
-QSharedPointer<cAudioTrack> cAnimationFrames::GetAudioPtr(const QString fullParameterName) const
+std::shared_ptr<cAudioTrack> cAnimationFrames::GetAudioPtr(const QString fullParameterName) const
 {
 	return audioTracks.GetAudioTrackPtr(fullParameterName);
 }
 
 cOneParameter cAnimationFrames::ApplyAudioAnimation(int frame, const cOneParameter &parameter,
-	const QString &parameterName, const cParameterContainer *params) const
+	const QString &parameterName, const std::shared_ptr<cParameterContainer> params) const
 {
 	cOneParameter newValue = parameter;
 	const QString fullParameterName = parameter.GetOriginalContainerName() + "_" + parameterName;
@@ -495,7 +506,8 @@ cOneParameter cAnimationFrames::ApplyAudioAnimation(int frame, const cOneParamet
 
 template <typename T>
 T cAnimationFrames::ApplyAudioAnimationOneComponent(int frame, T oldVal,
-	const QString &fullParameterNameWithSuffix, const cParameterContainer *params) const
+	const QString &fullParameterNameWithSuffix,
+	const std::shared_ptr<cParameterContainer> params) const
 {
 	T newVal = oldVal;
 	const bool isEnabled =
@@ -522,17 +534,19 @@ T cAnimationFrames::ApplyAudioAnimationOneComponent(int frame, T oldVal,
 }
 
 template int cAnimationFrames::ApplyAudioAnimationOneComponent(int frame, int oldVal,
-	const QString &fullParameterNameWithSuffix, const cParameterContainer *params) const;
+	const QString &fullParameterNameWithSuffix,
+	const std::shared_ptr<cParameterContainer> params) const;
 template double cAnimationFrames::ApplyAudioAnimationOneComponent(int frame, double oldVal,
-	const QString &fullParameterNameWithSuffix, const cParameterContainer *params) const;
+	const QString &fullParameterNameWithSuffix,
+	const std::shared_ptr<cParameterContainer> params) const;
 
-void cAnimationFrames::RemoveAllAudioParameters(cParameterContainer *params)
+void cAnimationFrames::RemoveAllAudioParameters(std::shared_ptr<cParameterContainer> params)
 {
 	if (!params) params = gPar;
 	audioTracks.DeleteAllAudioTracks(params);
 }
 
-void cAnimationFrames::LoadAllAudioFiles(cParameterContainer *params)
+void cAnimationFrames::LoadAllAudioFiles(std::shared_ptr<cParameterContainer> params)
 {
 	if (!params) params = gPar;
 	audioTracks.LoadAllAudioFiles(params);
@@ -544,7 +558,7 @@ void cAnimationFrames::setAudioParameterPrefix()
 }
 
 void cAnimationFrames::SetListOfParametersAndClear(
-	QList<sParameterDescription> _listOfParameters, cParameterContainer *params)
+	QList<sParameterDescription> _listOfParameters, std::shared_ptr<cParameterContainer> params)
 {
 	listOfParameters = _listOfParameters;
 	frames.clear();

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -55,19 +55,21 @@
 #include "render_ssao.h"
 #include "rendering_configuration.hpp"
 #include "stereo.h"
-#include "system.hpp"
+#include "system_data.hpp"
+#include "write_log.hpp"
 
-cRenderJob::cRenderJob(const cParameterContainer *_params, const cFractalContainer *_fractal,
-	cImage *_image, bool *_stopRequest, QWidget *_qWidget)
+cRenderJob::cRenderJob(const std::shared_ptr<cParameterContainer> _params,
+	const std::shared_ptr<cFractalContainer> _fractal, std::shared_ptr<cImage> _image,
+	bool *_stopRequest, QWidget *_qWidget)
 		: QObject()
 {
 	WriteLog("cRenderJob::cRenderJob", 2);
 	image = _image;
 
 	// create new copy of parameter container
-	paramsContainer = new cParameterContainer;
+	paramsContainer.reset(new cParameterContainer());
 	*paramsContainer = *_params;
-	fractalContainer = new cFractalContainer;
+	fractalContainer.reset(new cFractalContainer());
 	*fractalContainer = *_fractal;
 	canUseNetRender = false;
 
@@ -107,9 +109,6 @@ cRenderJob::~cRenderJob()
 {
 	id--;
 	// qDebug() << "Id" << id;
-	delete paramsContainer;
-	delete fractalContainer;
-	if (renderData) delete renderData;
 
 	if (canUseNetRender) gNetRender->Release();
 
@@ -190,8 +189,7 @@ bool cRenderJob::Init(enumMode _mode, const cRenderingConfiguration &config)
 	// systemData.numberOfThreads = 1;
 
 	// aux renderer data
-	if (renderData) delete renderData;
-	renderData = new sRenderData;
+	renderData.reset(new sRenderData);
 
 	renderData->stereo = stereo;
 	renderData->configuration = config;
@@ -340,6 +338,8 @@ bool cRenderJob::Execute()
 
 	bool twoPassStereo = false;
 	int noOfRepeats = GetNumberOfRepeatsOfStereoLoop(&twoPassStereo);
+	QElapsedTimer totalTime;
+	totalTime.start();
 
 	PrepareData();
 
@@ -369,8 +369,9 @@ bool cRenderJob::Execute()
 			WriteLog("cRenderJob::Execute(void): running jobs = " + QString::number(runningJobs), 2);
 
 			// move parameters from containers to structures
-			sParamRender *params = new sParamRender(paramsContainer, &renderData->objectData);
-			cNineFractals *fractals = new cNineFractals(fractalContainer, paramsContainer);
+			std::shared_ptr<sParamRender> params(
+				new sParamRender(paramsContainer, &renderData->objectData));
+			std::shared_ptr<cNineFractals> fractals(new cNineFractals(fractalContainer, paramsContainer));
 
 			renderData->ValidateObjects();
 
@@ -378,7 +379,7 @@ bool cRenderJob::Execute()
 			params->resolution = 1.0 / image->GetHeight();
 			ReduceDetail();
 
-			InitStatistics(fractals);
+			InitStatistics(fractals.get());
 
 			// initialize histograms
 			renderData->statistics.histogramIterations.Resize(paramsContainer->Get<int>("N"));
@@ -387,22 +388,18 @@ bool cRenderJob::Execute()
 			renderData->statistics.usedDEType = fractals->GetDETypeString();
 
 			// create and execute renderer
-			cRenderer *renderer = new cRenderer(params, fractals, renderData, image);
+			std::unique_ptr<cRenderer> renderer(new cRenderer(params, fractals, renderData, image));
 
-			ConnectUpdateSinalsSlots(renderer);
+			ConnectUpdateSinalsSlots(renderer.get());
 
 			if (renderData->configuration.UseNetRender())
 			{
-				ConnectNetRenderSignalsSlots(renderer);
+				ConnectNetRenderSignalsSlots(renderer.get());
 			}
 
 			result = renderer->RenderImage();
 
 			if (twoPassStereo && repeat == 0) renderData->stereo.StoreImageInBuffer(image);
-
-			delete params;
-			delete fractals;
-			delete renderer;
 		}
 	}
 
@@ -422,14 +419,15 @@ bool cRenderJob::Execute()
 			SetupStereoEyes(repeat, twoPassStereo);
 
 			// move parameters from containers to structures
-			sParamRender *params = new sParamRender(paramsContainer, &renderData->objectData);
-			cNineFractals *fractals = new cNineFractals(fractalContainer, paramsContainer);
+			std::shared_ptr<sParamRender> params(
+				new sParamRender(paramsContainer, &renderData->objectData));
+			std::shared_ptr<cNineFractals> fractals(new cNineFractals(fractalContainer, paramsContainer));
 
 			renderData->ValidateObjects();
 
 			image->SetImageParameters(params->imageAdjustments);
 
-			InitStatistics(fractals);
+			InitStatistics(fractals.get());
 			emit updateStatistics(renderData->statistics);
 
 			image->SetFastPreview(true);
@@ -476,9 +474,6 @@ bool cRenderJob::Execute()
 			}
 
 			if (twoPassStereo && repeat == 0) renderData->stereo.StoreImageInBuffer(image);
-
-			delete params;
-			delete fractals;
 		} // next repeat
 
 		image->SetFastPreview(false);
@@ -486,6 +481,7 @@ bool cRenderJob::Execute()
 		gApplication->processEvents();
 		emit updateProgressAndStatus(
 			tr("OpenCl - rendering - all finished"), progressText.getText(1.0), 1.0);
+		emit signalTotalRenderTime(progressText.getTime());
 	}
 
 #endif
@@ -496,7 +492,7 @@ bool cRenderJob::Execute()
 		if (image->IsPreview())
 		{
 			WriteLog("image->ConvertTo8bit()", 2);
-			image->ConvertTo8bit();
+			image->ConvertTo8bitChar();
 			WriteLog("image->UpdatePreview()", 2);
 			image->UpdatePreview();
 			WriteLog("image->GetImageWidget()->update()", 2);
@@ -505,7 +501,10 @@ bool cRenderJob::Execute()
 	}
 
 	if (result)
+	{
 		emit fullyRendered(tr("Finished Render"), tr("The image has been rendered completely."));
+		emit fullyRenderedTime(totalTime.elapsed() / 1000.0);
+	}
 
 	inProgress = false;
 
@@ -610,7 +609,7 @@ void cRenderJob::InitNetRender()
 		QStringList listOfUsedTextures = CreateListOfUsedTextures();
 
 		// send settings to all clients
-		emit SendNetRenderJob(*paramsContainer, *fractalContainer, listOfUsedTextures);
+		emit SendNetRenderJob(paramsContainer, fractalContainer, listOfUsedTextures);
 	}
 
 	// get starting positions received from server
@@ -630,8 +629,8 @@ void cRenderJob::InitStatistics(const cNineFractals *fractals)
 }
 
 #ifdef USE_OPENCL
-bool cRenderJob::RenderFractalWithOpenCl(
-	sParamRender *params, cNineFractals *fractals, cProgressText *progressText)
+bool cRenderJob::RenderFractalWithOpenCl(std::shared_ptr<sParamRender> params,
+	std::shared_ptr<cNineFractals> fractals, cProgressText *progressText)
 {
 	bool result = false;
 	connect(gOpenCl->openClEngineRenderFractal, SIGNAL(updateStatistics(cStatistics)), this,
@@ -647,6 +646,7 @@ bool cRenderJob::RenderFractalWithOpenCl(
 		Qt::UniqueConnection);
 
 	gOpenCl->openClEngineRenderFractal->Lock();
+	progressText->ResetTimer();
 	gOpenCl->openClEngineRenderFractal->SetParameters(
 		paramsContainer, fractalContainer, params, fractals, renderData, false);
 	if (gOpenCl->openClEngineRenderFractal->LoadSourcesAndCompile(paramsContainer))
@@ -656,8 +656,8 @@ bool cRenderJob::RenderFractalWithOpenCl(
 			gOpenCl->openClEngineRenderFractal->CalcNeededMemory() / 1048576.0, 2);
 		gOpenCl->openClEngineRenderFractal->PreAllocateBuffers(paramsContainer);
 		gOpenCl->openClEngineRenderFractal->CreateCommandQueue();
-		result =
-			gOpenCl->openClEngineRenderFractal->RenderMulti(image, renderData->stopRequest, renderData);
+		result = gOpenCl->openClEngineRenderFractal->RenderMulti(
+			image, renderData->stopRequest, renderData.get());
 	}
 	WriteLog("OpenCL RenderMulti exited", 2);
 	gOpenCl->openClEngineRenderFractal->ReleaseMemory();
@@ -668,8 +668,8 @@ bool cRenderJob::RenderFractalWithOpenCl(
 	return result;
 }
 
-void cRenderJob::RenderSSAOWithOpenCl(
-	sParamRender *params, const cRegion<int> &region, cProgressText *progressText, bool *result)
+void cRenderJob::RenderSSAOWithOpenCl(std::shared_ptr<sParamRender> params,
+	const cRegion<int> &region, cProgressText *progressText, bool *result)
 {
 	if (!*renderData->stopRequest && *result == true)
 	{
@@ -684,7 +684,7 @@ void cRenderJob::RenderSSAOWithOpenCl(
 				SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)));
 
 			gOpenCl->openClEngineRenderSSAO->Lock();
-			gOpenCl->openClEngineRenderSSAO->SetParameters(params, region);
+			gOpenCl->openClEngineRenderSSAO->SetParameters(params.get(), region);
 			if (gOpenCl->openClEngineRenderSSAO->LoadSourcesAndCompile(paramsContainer))
 			{
 				gOpenCl->openClEngineRenderSSAO->CreateKernel4Program(paramsContainer);
@@ -719,7 +719,7 @@ void cRenderJob::RenderSSAOWithOpenCl(
 					if (image->IsPreview())
 					{
 						WriteLog("image->ConvertTo8bit()", 2);
-						image->ConvertTo8bit();
+						image->ConvertTo8bitChar();
 						WriteLog("image->UpdatePreview()", 2);
 						image->UpdatePreview();
 						WriteLog("image->GetImageWidget()->update()", 2);
@@ -737,7 +737,7 @@ void cRenderJob::RenderSSAOWithOpenCl(
 	}
 }
 
-void cRenderJob::RenderDOFWithOpenCl(sParamRender *params, bool *result)
+void cRenderJob::RenderDOFWithOpenCl(std::shared_ptr<sParamRender> params, bool *result)
 {
 	if (!*renderData->stopRequest)
 	{
@@ -756,17 +756,17 @@ void cRenderJob::RenderDOFWithOpenCl(sParamRender *params, bool *result)
 				region = renderData->stereo.GetRegion(
 					CVector2<int>(image->GetWidth(), image->GetHeight()), cStereo::eyeLeft);
 				*result = gOpenCl->openclEngineRenderDOF->RenderDOF(
-					params, paramsContainer, image, renderData->stopRequest, region);
+					params.get(), paramsContainer, image, renderData->stopRequest, region);
 
 				region = renderData->stereo.GetRegion(
 					CVector2<int>(image->GetWidth(), image->GetHeight()), cStereo::eyeRight);
 				*result = gOpenCl->openclEngineRenderDOF->RenderDOF(
-					params, paramsContainer, image, renderData->stopRequest, region);
+					params.get(), paramsContainer, image, renderData->stopRequest, region);
 			}
 			else
 			{
 				*result = gOpenCl->openclEngineRenderDOF->RenderDOF(
-					params, paramsContainer, image, renderData->stopRequest, renderData->screenRegion);
+					params.get(), paramsContainer, image, renderData->stopRequest, renderData->screenRegion);
 			}
 		}
 	}
@@ -781,6 +781,7 @@ void cRenderJob::ConnectUpdateSinalsSlots(const cRenderer *renderer)
 	connect(
 		renderer, SIGNAL(updateStatistics(cStatistics)), this, SIGNAL(updateStatistics(cStatistics)));
 	connect(renderer, SIGNAL(updateImage()), this, SIGNAL(updateImage()));
+	connect(renderer, &cRenderer::signalTotalRenderTime, this, &cRenderJob::signalTotalRenderTime);
 }
 
 void cRenderJob::ConnectNetRenderSignalsSlots(const cRenderer *renderer)
@@ -810,8 +811,8 @@ void cRenderJob::ChangeCameraTargetPosition(cCameraTarget &cameraTarget) const
 	paramsContainer->Set("camera_distance_to_target", cameraTarget.GetDistance());
 }
 
-void cRenderJob::UpdateParameters(
-	const cParameterContainer *_params, const cFractalContainer *_fractal)
+void cRenderJob::UpdateParameters(const std::shared_ptr<cParameterContainer> _params,
+	const std::shared_ptr<cFractalContainer> _fractal)
 {
 	*paramsContainer = *_params;
 	*fractalContainer = *_fractal;

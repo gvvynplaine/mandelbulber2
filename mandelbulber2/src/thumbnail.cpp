@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-17 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -36,6 +36,7 @@
 
 #include <utility>
 
+#include <QDir>
 #include <QFileInfo>
 #include <QPixmap>
 
@@ -44,21 +45,22 @@
 #include "render_job.hpp"
 #include "rendering_configuration.hpp"
 #include "settings.hpp"
-#include "system.hpp"
+#include "system_directories.hpp"
 
-cThumbnail::cThumbnail(const cParameterContainer *_params, const cFractalContainer *_fractal,
-	int _width, int _height, QString _hash = QString())
+cThumbnail::cThumbnail(const std::shared_ptr<cParameterContainer> _params,
+	const std::shared_ptr<cFractalContainer> _fractal, int _width, int _height,
+	QString _hash = QString())
 		: params(_params), fractal(_fractal), width(_width), height(_height), hash(std::move(_hash))
 {
 	image = nullptr;
 	qWidget = nullptr;
-	image = new cImage(width, height);
+	image.reset(new cImage(width, height));
 	// image->CreatePreview(1.0, width, height, qWidget);
 }
 
 cThumbnail::~cThumbnail()
 {
-	delete image;
+	// nothing to delete
 }
 
 QPixmap cThumbnail::Render()
@@ -73,7 +75,7 @@ QPixmap cThumbnail::Render()
 	}
 
 	QString thumbnailFileName =
-		systemData.GetThumbnailsFolder() + QDir::separator() + hash + QString(".png");
+		systemDirectories.GetThumbnailsFolder() + QDir::separator() + hash + QString(".png");
 	if (QFileInfo::exists(thumbnailFileName))
 	{
 		pixmap.load(thumbnailFileName);
@@ -81,7 +83,8 @@ QPixmap cThumbnail::Render()
 	else
 	{
 		bool stopRequest = false;
-		cRenderJob *renderJob = new cRenderJob(params, fractal, image, &stopRequest, qWidget);
+		std::unique_ptr<cRenderJob> renderJob(
+			new cRenderJob(params, fractal, image, &stopRequest, qWidget));
 		renderJob->UseSizeFromImage(true);
 
 		cRenderingConfiguration config;
@@ -92,10 +95,9 @@ QPixmap cThumbnail::Render()
 
 		renderJob->Init(cRenderJob::still, config);
 		renderJob->Execute();
-		QImage qImage(static_cast<const uchar *>(image->ConvertTo8bit()), width, height,
+		QImage qImage(static_cast<const uchar *>(image->ConvertTo8bitChar()), width, height,
 			width * sizeof(sRGB8), QImage::Format_RGB888);
 		pixmap.convertFromImage(qImage);
-		delete renderJob;
 		pixmap.save(thumbnailFileName, "PNG");
 	}
 	return pixmap;
@@ -104,5 +106,5 @@ QPixmap cThumbnail::Render()
 void cThumbnail::Save(QString filename) const
 {
 	ImageFileSaveJPG::SaveJPEGQt(
-		filename, image->ConvertTo8bit(), image->GetWidth(), image->GetHeight(), 85);
+		filename, image->ConvertTo8bitChar(), image->GetWidth(), image->GetHeight(), 85);
 }

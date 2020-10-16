@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2019 Mandelbulber Team        §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2019-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -47,7 +47,8 @@
 #include "src/error_message.hpp"
 #include "src/parameters.hpp"
 #include "src/random.hpp"
-#include "src/system.hpp"
+#include "src/system_data.hpp"
+#include "src/system_directories.hpp"
 
 cGradientEditWidget::cGradientEditWidget(QWidget *parent)
 		: QWidget(parent), CommonMyWidgetWrapper(this)
@@ -372,7 +373,8 @@ void cGradientEditWidget::GrabColors()
 	PreviewFileDialog dialog(this);
 	dialog.setFileMode(QFileDialog::ExistingFile);
 	dialog.setNameFilter(tr("Images (*.jpg *.jpeg *.png *.bmp)"));
-	dialog.setDirectory(QDir::toNativeSeparators(systemData.GetImagesFolder() + QDir::separator()));
+	dialog.setDirectory(
+		QDir::toNativeSeparators(systemDirectories.GetImagesFolder() + QDir::separator()));
 	dialog.selectFile(QDir::toNativeSeparators(systemData.lastImagePaletteFile));
 	dialog.setAcceptMode(QFileDialog::AcceptOpen);
 	dialog.setWindowTitle(tr("Select image to grab colors..."));
@@ -527,7 +529,7 @@ void cGradientEditWidget::SaveToClipboard()
 
 void cGradientEditWidget::contextMenuEvent(QContextMenuEvent *event)
 {
-	QMenu *menu = new QMenu();
+	QMenu *menu = new QMenu(); // menu is deleted in contextMenuEvent()
 	QAction *actionAddColor = menu->addAction(tr("Add color"));
 	QAction *actionRemoveColor = menu->addAction(tr("Remove color"));
 	menu->addSeparator();

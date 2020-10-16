@@ -221,13 +221,6 @@
     </layout>
    </item>
    <item>
-    <widget class="QLabel" name="label_2">
-     <property name="text">
-      <string/>
-     </property>
-    </widget>
-   </item>
-   <item>
     <widget class="MyGroupBox" name="groupCheck_info">
      <property name="title">
       <string>Info&amp;rmation</string>

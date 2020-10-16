@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -32,24 +32,25 @@
  * InitParams function - initialization of all parameters
  */
 
-#include <QtCore>
-
 #include "file_mesh.hpp"
 #include "files.h"
 #include "fractal.h"
-#include "fractal_list.hpp"
 #include "fractparams.hpp"
 #include "material.h"
 #include "netrender.hpp"
 #include "parameters.hpp"
 #include "stereo.h"
-#include "system.hpp"
+#include "system_data.hpp"
+#include "system_directories.hpp"
 #include "texture_enums.hpp"
+#include "write_log.hpp"
 
-cParameterContainer *gPar = nullptr;
+#include "formula/definition/all_fractal_list.hpp"
+
+std::shared_ptr<cParameterContainer> gPar;
 
 // definition of all parameters
-void InitParams(cParameterContainer *par)
+void InitParams(std::shared_ptr<cParameterContainer> par)
 {
 	using namespace parameterContainer;
 
@@ -85,8 +86,8 @@ void InitParams(cParameterContainer *par)
 	par->addParam("flight_rotation_speed_vector", CVector3(0.0, 0.0, 0.0), morphNone, paramStandard);
 	par->addParam("flight_sec_per_frame", 1.0, morphNone, paramApp);
 	par->addParam("flight_animation_image_type", 0, morphNone, paramApp, qslImageType);
-	par->addParam("anim_flight_dir", systemData.GetAnimationFolder() + QDir::separator(), morphNone,
-		paramStandard);
+	par->addParam("anim_flight_dir", systemDirectories.GetAnimationFolder() + QDir::separator(),
+		morphNone, paramStandard);
 
 	// keyframe animation
 	par->addParam("frames_per_keyframe", 100, 1, 99999, morphNone, paramStandard);
@@ -95,8 +96,8 @@ void InitParams(cParameterContainer *par)
 	par->addParam("keyframe_last_to_render", 9999999, 0, 9999999, morphNone, paramStandard);
 	par->addParam("show_keyframe_thumbnails", false, morphNone, paramApp);
 	par->addParam("keyframe_animation_image_type", 0, morphNone, paramApp, qslImageType);
-	par->addParam("anim_keyframe_dir", systemData.GetAnimationFolder() + QDir::separator(), morphNone,
-		paramStandard);
+	par->addParam("anim_keyframe_dir", systemDirectories.GetAnimationFolder() + QDir::separator(),
+		morphNone, paramStandard);
 	par->addParam("keyframe_collision_thresh", 1.0e-6, 1e-15, 1.0e2, morphNone, paramStandard);
 	par->addParam("keyframe_auto_validate", true, morphNone, paramApp);
 	par->addParam("keyframe_constant_target_distance", 0.1, 1e-10, 1.0e2, morphNone, paramStandard);
@@ -189,8 +190,8 @@ void InitParams(cParameterContainer *par)
 	par->addParam("hybrid_fractal_enable", false, morphNone, paramStandard);
 	par->addParam("bailout", 1e2, 1.0, 1e15, morphLinear, paramStandard);
 	par->addParam("repeat_from", 1, 1, 9, morphLinear, paramStandard);
-	par->addParam(
-		"delta_DE_function", int(fractal::preferredDEFunction), 0, 5, morphNone, paramStandard);
+	par->addParam("delta_DE_function", int(fractal::preferredDEFunction), 0,
+		int(fractal::numberOfDEFunctions), morphNone, paramStandard);
 	par->addParam("delta_DE_method", int(fractal::preferredDEMethod), 0, 2, morphNone, paramStandard);
 	par->addParam("use_default_bailout", true, morphNone, paramStandard);
 	par->addParam("initial_waxis", 0.0, morphAkima, paramStandard);
@@ -222,13 +223,15 @@ void InitParams(cParameterContainer *par)
 	par->addParam("voxel_samples_z", 100, 2, 65535, morphLinear, paramStandard);
 	par->addParam("voxel_max_iter", 30, 1, 10000, morphLinear, paramStandard);
 	par->addParam("voxel_image_path",
-		QDir::toNativeSeparators(systemData.GetSlicesFolder() + QDir::separator()), morphNone,
+		QDir::toNativeSeparators(systemDirectories.GetSlicesFolder() + QDir::separator()), morphNone,
 		paramStandard);
 	par->addParam("voxel_show_information", true, morphLinear, paramApp);
+	par->addParam("voxel_greyscale_iterations", false, morphLinear, paramApp);
 
 	// mesh export
 	par->addParam("mesh_output_filename",
-		systemData.GetSlicesFolder() + QDir::separator() + "output.ply", morphNone, paramStandard);
+		systemDirectories.GetSlicesFolder() + QDir::separator() + "output.ply", morphNone,
+		paramStandard);
 	par->addParam("mesh_color", true, morphNone, paramApp);
 	par->addParam("mesh_file_mode", int(MeshFileSave::MESH_BINARY), morphNone, paramApp);
 
@@ -258,8 +261,8 @@ void InitParams(cParameterContainer *par)
 	par->addParam("glow_enabled", true, morphLinear, paramStandard);
 	par->addParam("glow_intensity", 0.2, 0.0, 1e15, morphLinear, paramStandard);
 	par->addParam("textured_background", false, morphLinear, paramStandard);
-	par->addParam(
-		"textured_background_map_type", int(params::mapEquirectangular), morphNone, paramStandard);
+	par->addParam("textured_background_map_type", int(params::mapEquirectangular), morphNone,
+		paramStandard, QStringList({"equirectangular", "doubleHemisphere", "flat"}));
 	par->addParam("background_brightness", 1.0, 0.0, 1000.0, morphLinear, paramStandard);
 	par->addParam("background_h_scale", 1.0, 0.001, 1000.0, morphLinear, paramStandard);
 	par->addParam("background_texture_offset_x", 0.0, -1000.0, 1000.0, morphLinear, paramStandard);
@@ -305,6 +308,27 @@ void InitParams(cParameterContainer *par)
 	par->addParam("iteration_fog_brightness_boost", 1.0, 0.0, 1e6, morphLinear, paramStandard);
 	par->addParam("iteration_fog_shadows", true, morphLinear, paramStandard);
 
+	par->addParam("clouds_enable", false, morphLinear, paramStandard);
+	par->addParam("clouds_noise_iterations", 5, 1, 150, morphLinear, paramStandard);
+	par->addParam("clouds_random_seed", 12345, 0, 1000000, morphLinear, paramStandard);
+	par->addParam("clouds_opacity", 10.0, 0.0, 1e15, morphLinear, paramStandard);
+	par->addParam("clouds_density", 0.25, 0.0, 1.0, morphLinear, paramStandard);
+	par->addParam("clouds_period", 1.0, 1e-15, 1e15, morphLinear, paramStandard);
+	par->addParam("clouds_height", 1.0, 0.0, 1e15, morphLinear, paramStandard);
+	par->addParam("clouds_center", CVector3(0.0, 0.0, 0.0), morphLinear, paramStandard);
+	par->addParam("clouds_rotation", CVector3(0.0, 0.0, 0.0), morphLinear, paramStandard);
+	par->addParam("clouds_color", sRGB(65535, 65535, 65535), morphLinear, paramStandard);
+	par->addParam("clouds_ambient_light", 0.0, 0.0, 1.0, morphLinear, paramStandard);
+	par->addParam("clouds_lights_boost", 0.0, 0.0, 1e15, morphLinear, paramStandard);
+	par->addParam("clouds_cast_shadows", true, morphLinear, paramStandard);
+	par->addParam("clouds_plane_shape", false, morphLinear, paramStandard);
+	par->addParam("clouds_distance_mode", false, morphLinear, paramStandard);
+	par->addParam("clouds_distance", 1.0, 0.0, 1e15, morphLinear, paramStandard);
+	par->addParam("clouds_distance_layer", 0.5, 0.0, 1e15, morphLinear, paramStandard);
+	par->addParam("clouds_detail_accuracy", 1.0, 0.0, 1e15, morphLinear, paramStandard);
+	par->addParam("clouds_DE_approaching", 1.0, 0.0, 1e15, morphLinear, paramStandard);
+	par->addParam("clouds_DE_multiplier", 1.0, 0.0, 1e15, morphLinear, paramStandard);
+
 	par->addParam("hdr_blur_enabled", false, morphLinear, paramStandard);
 	par->addParam("hdr_blur_radius", 10.0, 0.1, 1000.0, morphLinear, paramStandard);
 	par->addParam("hdr_blur_intensity", 0.1, 0.0, 1000.0, morphLinear, paramStandard);
@@ -334,11 +358,13 @@ void InitParams(cParameterContainer *par)
 	par->addParam("DOF_MC_CA_dispersion_gain", 1.0, 1e-15, 1000.0, morphLinear, paramStandard);
 	par->addParam("DOF_MC_CA_camera_dispersion", 1.0, 1e-15, 1000.0, morphLinear, paramStandard);
 	par->addParam("MC_soft_shadows_enable", false, morphLinear, paramStandard);
+	par->addParam("MC_GI_radiance_limit", 10.0, 0.001, 1e10, morphLinear, paramStandard);
 
 	// main light
 	par->addParam("main_light_intensity", 1.0, 0.0, 1e15, morphLinear, paramStandard);
 	par->addParam("main_light_visibility", 1.0, 0.0, 1e15, morphLinear, paramStandard);
 	par->addParam("main_light_visibility_size", 1.0, 0.0, 1e15, morphLinear, paramStandard);
+	par->addParam("main_light_contour_sharpness", 1.0, 0.0, 1e15, morphLinear, paramStandard);
 	par->addParam("main_light_alpha", -45.0, morphAkimaAngle, paramStandard);
 	par->addParam("main_light_beta", 45.0, morphAkimaAngle, paramStandard);
 	par->addParam("main_light_colour", sRGB(65535, 65535, 65535), morphLinear, paramStandard);
@@ -409,46 +435,28 @@ void InitParams(cParameterContainer *par)
 
 	par->addParam("all_primitives_position", CVector3(0.0, 0.0, 0.0), morphAkima, paramStandard);
 	par->addParam("all_primitives_rotation", CVector3(0.0, 0.0, 0.0), morphAkimaAngle, paramStandard);
+	par->addParam("all_primitives_invisible_alpha", false, morphLinear, paramStandard);
 	par->addParam("fractal_position", CVector3(0.0, 0.0, 0.0), morphAkima, paramStandard);
 	par->addParam("fractal_rotation", CVector3(0.0, 0.0, 0.0), morphAkimaAngle, paramStandard);
 	par->addParam("repeat", CVector3(0.0, 0.0, 0.0), morphLinear, paramStandard);
 
-// OpenCL Support
-#ifdef CLSUPPORT
-	par->addParam("ocl_custom_DE_mode", false, false);
-	par->addParam("ocl_custom_formula_name", QString("example"), false);
-	for (int i = 0; i < 15; ++i)
-	{
-		par->addParam("ocl_custom_par", i, 0.0, true);
-	}
-	par->addParam("ocl_delta_DE_step", 1e-5, 1e-10, 1e10, true);
-	par->addParam("ocl_DOF_method", 0, false);
-	par->addParam("ocl_use_custom_formula", 0, false);
-#endif
-
 	// files
 	par->addParam("file_destination",
-		QDir::toNativeSeparators(systemData.GetImagesFolder() + QDir::separator() + "image"), morphNone,
-		paramStandard);
+		QDir::toNativeSeparators(systemDirectories.GetImagesFolder() + QDir::separator() + "image"),
+		morphNone, paramStandard);
 	par->addParam("file_background",
 		QDir::toNativeSeparators(
-			systemData.sharedDir + "textures" + QDir::separator() + "background.jpg"),
+			systemDirectories.sharedDir + "textures" + QDir::separator() + "background.jpg"),
 		morphNone, paramStandard);
 	par->addParam("file_envmap",
-		QDir::toNativeSeparators(systemData.sharedDir + "textures" + QDir::separator() + "envmap.jpg"),
+		QDir::toNativeSeparators(
+			systemDirectories.sharedDir + "textures" + QDir::separator() + "envmap.jpg"),
 		morphNone, paramStandard);
 	par->addParam("file_lightmap",
 		QDir::toNativeSeparators(
-			systemData.sharedDir + "textures" + QDir::separator() + "lightmap.jpg"),
+			systemDirectories.sharedDir + "textures" + QDir::separator() + "lightmap.jpg"),
 		morphNone, paramStandard);
-	/* unused in Mandelbulber v2
-	par->addParam("file_animation_path",
-		QDir::toNativeSeparators(systemData.dataDirectory + "paths" + QDir::separator() + "path.txt"),
-		morphNone, paramStandard);
-	par->addParam("file_keyframes", QDir::toNativeSeparators(systemData.dataDirectory + "keyframes"
-																													 + QDir::separator() + "keyframe"),
-		morphNone, paramStandard);
-	*/
+
 	par->addParam("description", QString(""), morphNone, paramStandard);
 
 	//----------------------- application parameters ---------------------
@@ -478,9 +486,11 @@ void InitParams(cParameterContainer *par)
 	par->addParam("netrender_client_remote_port", 5555, morphNone, paramApp);
 	par->addParam("netrender_server_local_port", 5555, morphNone, paramApp);
 
-	par->addParam("default_image_path", systemData.GetImagesFolder(), morphNone, paramApp);
-	par->addParam("default_textures_path", systemData.sharedDir + "textures", morphNone, paramApp);
-	par->addParam("default_settings_path", systemData.GetSettingsFolder(), morphNone, paramApp);
+	par->addParam("default_image_path", systemDirectories.GetImagesFolder(), morphNone, paramApp);
+	par->addParam(
+		"default_textures_path", systemDirectories.sharedDir + "textures", morphNone, paramApp);
+	par->addParam(
+		"default_settings_path", systemDirectories.GetSettingsFolder(), morphNone, paramApp);
 
 	par->addParam("show_queue_thumbnails", false, morphNone, paramApp);
 	par->addParam("queue_image_format", 0, morphNone, paramApp, qslImageType);
@@ -496,6 +506,7 @@ void InitParams(cParameterContainer *par)
 	par->addParam("connect_detail_level_2", false, morphNone, paramNoSave);
 
 	par->addParam("julia_preview_distance", 3.0, 1e-10, 1000.0, morphNone, paramApp);
+	par->addParam("julia_preview", true, morphNone, paramApp);
 
 	par->addParam("image_detached", false, morphNone, paramApp);
 
@@ -503,9 +514,14 @@ void InitParams(cParameterContainer *par)
 
 	// measurement
 	par->addParam("meas_point", CVector3(0.0, 0.0, 0.0), morphNone, paramNoSave);
+	par->addParam("meas_midpoint", CVector3(0.0, 0.0, 0.0), morphNone, paramNoSave);
 	par->addParam("meas_distance_from_last", 0.0, morphNone, paramNoSave);
 	par->addParam("meas_distance_from_camera", 0.0, morphNone, paramNoSave);
 	par->addParam("meas_aligned_rotation", CVector3(0.0, 0.0, 0.0), morphNone, paramNoSave);
+
+	// randomizer
+	par->addParam("randomizer_only_floats", false, morphNone, paramApp);
+	par->addParam("randomizer_dont_randomize_camera", false, morphNone, paramApp);
 
 	//----------------------- preferences ---------------------
 	par->addParam("language", QString("unknown"), morphNone, paramApp);
@@ -513,12 +529,19 @@ void InitParams(cParameterContainer *par)
 	par->addParam("ui_skin", -1, morphNone, paramApp);
 	par->addParam("ui_font_size", systemData.GetPreferredFontPointSize(), 5, 50, morphNone, paramApp);
 	par->addParam(
+		"custom_formula_font_size", systemData.GetPreferredFontPointSize(), 5, 50, morphNone, paramApp);
+	par->addParam(
 		"toolbar_icon_size", systemData.GetPreferredThumbnailSize() / 2, 20, 400, morphNone, paramApp);
 	par->addParam("ui_colorize", true, morphNone, paramApp);
 	par->addParam("ui_colorize_random_seed", 12345, morphNone, paramApp);
 	par->addParam("display_tooltips", true, morphNone, paramApp);
 
 	par->addParam("limit_CPU_cores", get_cpu_count(), 1, get_cpu_count(), morphNone, paramApp);
+
+	par->addParam(
+		"randomizer_preview_quality", 1, morphNone, paramApp, QStringList({"low", "medium", "high"}));
+	par->addParam(
+		"randomizer_preview_size", 1, morphNone, paramApp, QStringList({"small", "medium", "big"}));
 
 	// image file configuration
 	par->addParam("color_enabled", true, morphNone, paramApp);
@@ -560,6 +583,12 @@ void InitParams(cParameterContainer *par)
 	par->addParam("save_channels_in_separate_folders", false, morphNone, paramApp);
 	par->addParam("optional_image_channels_enabled", false, morphNone, paramApp);
 
+	par->addParam("zbuffer_invert", false, morphNone, paramApp);
+	par->addParam("zbuffer_logarithmic", true, morphNone, paramApp);
+	par->addParam("zbuffer_constant_range", false, morphNone, paramApp);
+	par->addParam("zbuffer_max_depth", 10.0, morphNone, paramApp);
+	par->addParam("zbuffer_min_depth", 1e-4, morphNone, paramApp);
+
 	par->addParam("logging_verbosity", 1, 0, 3, morphNone, paramApp);
 	par->addParam("threads_priority", 2, 0, 3, morphNone, paramApp);
 
@@ -577,12 +606,13 @@ void InitParams(cParameterContainer *par)
 	par->addParam("opencl_job_size_multiplier", 2, morphNone, paramApp);
 	par->addParam("opencl_reserved_gpu_time", 0.1, morphNone, paramApp);
 	par->addParam("thumbnails_with_opencl", false, morphNone, paramApp);
+	par->addParam("clang_format_path", QString("clang-format"), morphNone, paramApp);
 
 	WriteLog("Parameters initialization finished", 3);
 }
 
 // definition of all parameters
-void InitFractalParams(cParameterContainer *par)
+void InitFractalParams(std::shared_ptr<cParameterContainer> par)
 {
 	WriteLog("Fractal parameters initialization started: " + par->GetContainerName(), 3);
 
@@ -804,10 +834,14 @@ void InitFractalParams(cParameterContainer *par)
 
 	// common parameters for transforming formulas
 	par->addParam("transf_angle_0", 0.0, morphAkimaAngle, paramStandard);
+	par->addParam("transf_angle_72", 72.0, morphAkimaAngle, paramStandard);
 	par->addParam("transf_alpha_angle_offset", 0.0, morphAkimaAngle, paramStandard);
 	par->addParam("transf_beta_angle_offset", 0.0, morphAkimaAngle, paramStandard);
 	par->addParam("transf_folding_value", 2.0, morphAkima, paramStandard);
 	par->addParam("transf_folding_limit", 1.0, morphAkima, paramStandard);
+	par->addParam("transf_invert_0", 0.0, morphAkima, paramStandard);
+	par->addParam("transf_invert_1", 1.0, morphAkima, paramStandard);
+
 	par->addParam("transf_multiplication", 2.0, morphAkima, paramStandard);
 	par->addParam("transf_minimum_radius_0", 0.0, morphAkima, paramStandard);
 	par->addParam("transf_minimum_radius_05", 0.5, morphAkima, paramStandard);
@@ -827,8 +861,11 @@ void InitFractalParams(cParameterContainer *par)
 	par->addParam("transf_offsetR_0", 0.0, morphAkima, paramStandard);
 
 	par->addParam("transf_offset_0005", 0.005, morphAkima, paramStandard);
+	par->addParam("transf_offset_p05", 0.05, morphAkima, paramStandard);
+	par->addParam("transf_offset_01", 0.1, morphAkima, paramStandard);
 	par->addParam("transf_offset_05", 0.5, morphAkima, paramStandard);
 	par->addParam("transf_offsetA_05", 0.5, morphAkima, paramStandard);
+	par->addParam("transf_offsetB_05", 0.5, morphAkima, paramStandard);
 	par->addParam("transf_offset_1", 1.0, morphAkima, paramStandard);
 	par->addParam("transf_offsetA_1", 1.0, morphAkima, paramStandard);
 	par->addParam("transf_offsetR_1", 1.0, morphAkima, paramStandard);
@@ -870,6 +907,7 @@ void InitFractalParams(cParameterContainer *par)
 	par->addParam("transf_scaleA_3", 3.0, morphAkima, paramStandard);
 	par->addParam("transf_scaleB_3", 3.0, morphAkima, paramStandard);
 	par->addParam("transf_scale_4", 4.0, morphAkima, paramStandard);
+	par->addParam("transf_scale_6", 6.0, morphAkima, paramStandard);
 	par->addParam("transf_scale_8", 8.0, morphAkima, paramStandard);
 
 	par->addParam("transf_scale_main_2", 2.0, morphAkima, paramStandard);
@@ -878,6 +916,8 @@ void InitFractalParams(cParameterContainer *par)
 	par->addParam("transf_int_A", 0, morphLinear, paramStandard);
 	par->addParam("transf_int_B", 0, morphLinear, paramStandard);
 	par->addParam("transf_int_1", 1, morphLinear, paramStandard);
+	par->addParam("transf_intA_1", 1, morphLinear, paramStandard);
+	par->addParam("transf_intB_1", 1, morphLinear, paramStandard);
 	par->addParam("transf_int_2", 2, morphLinear, paramStandard);
 	par->addParam("transf_int_3", 3, morphLinear, paramStandard);
 	par->addParam("transf_int_3_X", 3, morphLinear, paramStandard);
@@ -1013,6 +1053,7 @@ void InitFractalParams(cParameterContainer *par)
 	par->addParam("transf_offsetA_200", CVector3(2.0, 0.0, 0.0), morphAkima, paramStandard);
 	par->addParam("transf_offset_222", CVector3(2.0, 2.0, 2.0), morphAkima, paramStandard);
 	par->addParam("transf_offsetA_222", CVector3(2.0, 2.0, 2.0), morphAkima, paramStandard);
+	par->addParam("transf_offset_333", CVector3(3.0, 3.0, 3.0), morphAkima, paramStandard);
 	par->addParam("transf_power_025", CVector3(0.25, 0.25, 0.25), morphAkimaAngle, paramStandard);
 	par->addParam("transf_power_8", CVector3(8.0, 8.0, 8.0), morphAkimaAngle, paramStandard);
 
@@ -1040,6 +1081,7 @@ void InitFractalParams(cParameterContainer *par)
 		"transf_addition_constant_0000", CVector4(0.0, 0.0, 0.0, 0.0), morphAkima, paramStandard);
 	par->addParam("transf_offset_0000", CVector4(0.0, 0.0, 0.0, 0.0), morphAkima, paramStandard);
 	par->addParam("transf_offsetA_0000", CVector4(0.0, 0.0, 0.0, 0.0), morphAkima, paramStandard);
+	par->addParam("transf_offset_p5555", CVector4(0.5, 0.5, 0.5, 0.5), morphAkima, paramStandard);
 	par->addParam("transf_offset_1111", CVector4(1.0, 1.0, 1.0, 1.0), morphAkima, paramStandard);
 	par->addParam("transf_offsetA_1111", CVector4(1.0, 1.0, 1.0, 1.0), morphAkima, paramStandard);
 	par->addParam("transf_offsetB_1111", CVector4(1.0, 1.0, 1.0, 1.0), morphAkima, paramStandard);
@@ -1130,11 +1172,20 @@ void InitFractalParams(cParameterContainer *par)
 	// dummy parameter for information group box
 	par->addParam("info", false, morphNone, paramStandard);
 
+	// parameters for coustom formulas
+
+	QString emptyCode =
+		"REAL4 CustomIteration(REAL4 z, __constant sFractalCl *fractal, sExtendedAuxCl *aux)\n"
+		"{\n"
+		"\treturn z;\n"
+		"}\n";
+	par->addParam("formula_code", emptyCode, morphNone, paramStandard);
+
 	WriteLog("Fractal parameters initialization finished", 3);
 }
 
-void InitPrimitiveParams(
-	fractal::enumObjectType objectType, const QString primitiveName, cParameterContainer *par)
+void InitPrimitiveParams(fractal::enumObjectType objectType, const QString primitiveName,
+	std::shared_ptr<cParameterContainer> par)
 {
 	par->addParam(
 		QString(primitiveName) + "_position", CVector3(0.0, 0.0, 0.0), morphAkima, paramStandard);
@@ -1221,7 +1272,7 @@ void InitPrimitiveParams(
 	}
 }
 
-void InitMaterialParams(int materialId, cParameterContainer *par)
+void InitMaterialParams(int materialId, std::shared_ptr<cParameterContainer> par)
 {
 	//*********** NOTE: every material parameter have to be listed in QStringList
 	// cMaterial::paramsList in material.cpp file
@@ -1242,35 +1293,35 @@ void InitMaterialParams(int materialId, cParameterContainer *par)
 		morphAkima, paramStandard);
 	par->addParam(cMaterial::Name("file_color_texture", materialId),
 		QDir::toNativeSeparators(
-			systemData.sharedDir + "textures" + QDir::separator() + "color_texture.jpg"),
+			systemDirectories.sharedDir + "textures" + QDir::separator() + "color_texture.jpg"),
 		morphNone, paramStandard);
 	par->addParam(cMaterial::Name("file_diffusion_texture", materialId),
 		QDir::toNativeSeparators(
-			systemData.sharedDir + "textures" + QDir::separator() + "diffusion_texture.jpg"),
+			systemDirectories.sharedDir + "textures" + QDir::separator() + "diffusion_texture.jpg"),
 		morphNone, paramStandard);
 	par->addParam(cMaterial::Name("file_displacement_texture", materialId),
 		QDir::toNativeSeparators(
-			systemData.sharedDir + "textures" + QDir::separator() + "displacement_texture.jpg"),
+			systemDirectories.sharedDir + "textures" + QDir::separator() + "displacement_texture.jpg"),
 		morphNone, paramStandard);
 	par->addParam(cMaterial::Name("file_luminosity_texture", materialId),
 		QDir::toNativeSeparators(
-			systemData.sharedDir + "textures" + QDir::separator() + "luminosity_texture.jpg"),
+			systemDirectories.sharedDir + "textures" + QDir::separator() + "luminosity_texture.jpg"),
 		morphNone, paramStandard);
 	par->addParam(cMaterial::Name("file_normal_map_texture", materialId),
 		QDir::toNativeSeparators(
-			systemData.sharedDir + "textures" + QDir::separator() + "normal_map_texture.jpg"),
+			systemDirectories.sharedDir + "textures" + QDir::separator() + "normal_map_texture.jpg"),
 		morphNone, paramStandard);
 	par->addParam(cMaterial::Name("file_reflectance_texture", materialId),
 		QDir::toNativeSeparators(
-			systemData.sharedDir + "textures" + QDir::separator() + "reflectance_texture.jpg"),
+			systemDirectories.sharedDir + "textures" + QDir::separator() + "reflectance_texture.jpg"),
 		morphNone, paramStandard);
 	par->addParam(cMaterial::Name("file_transparency_texture", materialId),
 		QDir::toNativeSeparators(
-			systemData.sharedDir + "textures" + QDir::separator() + "transparency_texture.jpg"),
+			systemDirectories.sharedDir + "textures" + QDir::separator() + "transparency_texture.jpg"),
 		morphNone, paramStandard);
 	par->addParam(cMaterial::Name("file_roughness_texture", materialId),
 		QDir::toNativeSeparators(
-			systemData.sharedDir + "textures" + QDir::separator() + "roughness_texture.jpg"),
+			systemDirectories.sharedDir + "textures" + QDir::separator() + "roughness_texture.jpg"),
 		morphNone, paramStandard);
 	par->addParam(cMaterial::Name("fractal_coloring_add_enabled_false", materialId), false, morphNone,
 		paramStandard);
@@ -1530,8 +1581,8 @@ void InitMaterialParams(int materialId, cParameterContainer *par)
 	par->SetAsGradient(cMaterial::Name("transparency_gradient", materialId));
 }
 
-void DeletePrimitiveParams(
-	fractal::enumObjectType objectType, const QString primitiveName, cParameterContainer *par)
+void DeletePrimitiveParams(fractal::enumObjectType objectType, const QString primitiveName,
+	std::shared_ptr<cParameterContainer> par)
 {
 	par->DeleteParameter(QString(primitiveName) + "_position");
 	par->DeleteParameter(QString(primitiveName) + "_rotation");
@@ -1598,7 +1649,7 @@ void DeletePrimitiveParams(
 	}
 }
 
-void DeleteAllPrimitiveParams(cParameterContainer *par)
+void DeleteAllPrimitiveParams(std::shared_ptr<cParameterContainer> par)
 {
 	QList<QString> list = par->GetListOfParameters();
 	for (auto &parameterName : list)
@@ -1610,7 +1661,7 @@ void DeleteAllPrimitiveParams(cParameterContainer *par)
 	}
 }
 
-void DeleteAllMaterialParams(cParameterContainer *par)
+void DeleteAllMaterialParams(std::shared_ptr<cParameterContainer> par)
 {
 	QList<QString> list = par->GetListOfParameters();
 	for (auto &parameterName : list)

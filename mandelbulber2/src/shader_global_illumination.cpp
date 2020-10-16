@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -45,8 +45,8 @@ sRGBFloat cRenderWorker::GlobalIlumination(
 	sShaderInputData inputCopy = input;
 	sRGBAfloat objectColorTemp = objectColor;
 
-	sStep *stepBuff = new sStep[maxRaymarchingSteps + 2];
-	inputCopy.stepBuff = stepBuff;
+	std::vector<sStep> stepBuff(maxRaymarchingSteps + 2);
+	inputCopy.stepBuff = stepBuff.data();
 	inputCopy.stepCount = 0;
 
 	sRGBAfloat resultShader;
@@ -99,7 +99,6 @@ sRGBFloat cRenderWorker::GlobalIlumination(
 			{
 				if (scan < distThresh * 2.0)
 				{
-					delete[] stepBuff;
 					return out;
 				}
 				inputCopy.point = point;
@@ -170,6 +169,10 @@ sRGBFloat cRenderWorker::GlobalIlumination(
 		}
 		double influence = qBound(0.0, 1.0 - totalOpacity, 1.0);
 
+		resultShader.R = clamp(resultShader.R, 0.0f, params->monteCarloGIRadianceLimit);
+		resultShader.G = clamp(resultShader.G, 0.0f, params->monteCarloGIRadianceLimit);
+		resultShader.B = clamp(resultShader.B, 0.0f, params->monteCarloGIRadianceLimit);
+
 		out.R += resultShader.R * objectColorTemp.R * influence;
 		out.G += resultShader.G * objectColorTemp.G * influence;
 		out.B += resultShader.B * objectColorTemp.B * influence;
@@ -180,6 +183,5 @@ sRGBFloat cRenderWorker::GlobalIlumination(
 		if (finished || totalOpacity > 1.0) break;
 	}
 
-	delete[] stepBuff;
 	return out;
 }

@@ -5,6 +5,10 @@ macx:QT += svg
 CONFIG += link_pkgconfig
 CONFIG += c++14
 
+QMAKE_FULL_VERSION = 2.3-dev
+QMAKE_TARGET_BUNDLE_PREFIX = com.mandelbulber
+VERSION = 2.3
+
 # optional dependecies
 qtHaveModule(gamepad){
 	QT += gamepad
@@ -22,7 +26,7 @@ packagesExist(IlmBase){
 packagesExist(libtiff-4){
 	PKGCONFIG += libtiff-4
 }
-win32|packagesExist(libtiff-4) {
+macx|win32|packagesExist(libtiff-4) {
 	LIBS += -ltiff
 	DEFINES += USE_TIFF
 	message("Use tiff library for TIFF files")
@@ -31,7 +35,7 @@ win32|packagesExist(libtiff-4) {
 packagesExist(sndfile){
 	PKGCONFIG += sndfile
 }
-win32|packagesExist(sndfile) {
+macx|win32|packagesExist(sndfile) {
 	LIBS += -lsndfile
 	DEFINES += USE_SNDFILE
 	message("Use sndfile library for WAV files")
@@ -64,6 +68,9 @@ HEADERS += $$ROOT/src/*.hpp
 HEADERS += $$ROOT/src/*.h
 HEADERS += $$ROOT/qt/*.hpp
 HEADERS += $$ROOT/qt/*.h
+HEADERS += $$ROOT/formula/definition/*.h
+HEADERS += $$ROOT/formula/definition/*.hpp
+HEADERS += $$ROOT/third-party/stb/*.h
 
 FORMS += $$ROOT/qt/*.ui
 

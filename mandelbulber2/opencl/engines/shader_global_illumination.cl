@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -159,9 +159,10 @@ float3 GlobalIlumination(__constant sClInConstants *consts, sRenderData *renderD
 #endif
 
 			sClGradientsCollection gradients;
+			float alpha = 1.0f;
 
 			float3 objectShader = ObjectShader(consts, renderData, &inputCopy, calcParam, &objectColor,
-				&specular, &iridescence, &gradients);
+				&specular, &iridescence, &alpha, &gradients);
 
 			newColor = objectColor;
 			resultShader.xyz = objectShader;
@@ -184,6 +185,7 @@ float3 GlobalIlumination(__constant sClInConstants *consts, sRenderData *renderD
 #endif
 
 		float influence = clamp(1.0f - totalOpacity, 0.0f, 1.0f);
+		resultShader = clamp(resultShader, 0.0f, consts->params.monteCarloGIRadianceLimit);
 		out += resultShader.xyz * objectColorTemp * influence;
 
 		totalOpacity += opacityOut;

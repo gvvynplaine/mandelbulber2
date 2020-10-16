@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017 Mandelbulber Team        §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,6 +35,10 @@
 #ifndef MANDELBULBER2_SRC_POST_EFFECT_HDR_BLUR_H_
 #define MANDELBULBER2_SRC_POST_EFFECT_HDR_BLUR_H_
 
+#include <memory>
+
+#include <QObject>
+
 #include "color_structures.hpp"
 
 // forward declarations
@@ -45,14 +49,14 @@ class cPostEffectHdrBlur : public QObject
 	Q_OBJECT
 
 public:
-	cPostEffectHdrBlur(cImage *_image);
+	cPostEffectHdrBlur(std::shared_ptr<cImage> _image);
 	~cPostEffectHdrBlur() override;
 	void SetParameters(double _radius, double _intensity);
 
 	void Render(bool *stopRequest);
 
-	cImage *image;
-	sRGBFloat *tempImage;
+	std::shared_ptr<cImage> image;
+	std::vector<sRGBFloat> tempImage;
 	double radius;
 	double intensity;
 

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -32,6 +32,9 @@
  * dynamic data for textures loaded to OpenCL kernel
  */
 
+#include <QSet>
+
+#include "common_math.h"
 #include "system.hpp"
 
 // custom includes
@@ -39,6 +42,7 @@
 #include "opencl_textures_data.h"
 #include "material.h"
 #include "render_data.hpp"
+#include "write_log.hpp"
 
 cOpenClTexturesData::cOpenClTexturesData(int _numberOfTextures)
 		: cOpenClAbstractDynamicData(_numberOfTextures)
@@ -264,18 +268,36 @@ void cOpenClTexturesData::BuildTextureData(
 		int x = i % textureWidth;
 		int y = i / textureWidth;
 
-		sRGBA16 pixel = texture->FastPixel(x, y);
+		sRGBFloat pixel = texture->FastPixel(x, y);
 
 		cl_uchar4 clpixel;
 		if (!grey16bit)
 		{
-			clpixel = {cl_uchar(pixel.R / 256), cl_uchar(pixel.G / 256), cl_uchar(pixel.B / 256),
-				cl_uchar(pixel.A / 256)};
+			// hdre color compression
+			float v = pixel.R; // max rgb value
+			if (v < pixel.G) v = pixel.G;
+			if (v < pixel.B) v = pixel.B;
+			if (v < 1e-32)
+			{
+				clpixel = {{0, 0, 0, 0}};
+			}
+			else
+			{
+				int exponent;
+				int value = frexp(v, &exponent) * 256.0 / v;
+				int r = int(value * pixel.R);
+				int g = int(value * pixel.G);
+				int b = int(value * pixel.B);
+				int e = int(exponent + 128);
+
+				clpixel = {{cl_uchar(r), cl_uchar(g), cl_uchar(b), cl_uchar(e)}};
+			}
 		}
 		else
 		{
 			// greyscale 16bit texture is coded using first two bytes
-			clpixel = {cl_uchar(pixel.R / 256), cl_uchar(pixel.R % 256), 0, 0};
+			int brightness = clamp(int(pixel.R * 65535.0), 0, 65535);
+			clpixel = {{cl_uchar(brightness / 256), cl_uchar(brightness % 256), 0, 0}};
 		}
 
 		data.append(reinterpret_cast<char *>(&clpixel), sizeof(clpixel));

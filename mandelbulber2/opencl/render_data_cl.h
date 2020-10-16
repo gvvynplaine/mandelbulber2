@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -46,7 +46,7 @@ typedef struct
 	float hue;
 #endif
 
-#if defined(FULL_ENGINE) || defined(MESH_EXPORT)
+#if (defined(FULL_ENGINE) || defined(MESH_EXPORT)) && !defined(DISTANCE_CALCULATION_MODE)
 	__global sMaterialCl **materials;
 	__global float4 **palettes;
 
@@ -111,6 +111,10 @@ typedef struct
 	int paletteTransparencyLength;
 #endif
 
+#endif
+
+#ifdef CLOUDS
+	__global uchar *perlinNoiseSeeds;
 #endif
 
 #ifdef USE_TEXTURES

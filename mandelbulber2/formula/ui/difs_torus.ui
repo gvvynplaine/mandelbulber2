@@ -1145,10 +1145,10 @@
               <number>6</number>
              </property>
              <property name="minimum">
-              <double>-100000.000000000000000</double>
+              <double>-99.989999999999995</double>
              </property>
              <property name="maximum">
-              <double>100000.000000000000000</double>
+              <double>99.989999999999995</double>
              </property>
              <property name="singleStep">
               <double>0.100000000000000</double>
@@ -1173,10 +1173,10 @@
               <number>6</number>
              </property>
              <property name="minimum">
-              <double>-100000.000000000000000</double>
+              <double>-99.989999999999995</double>
              </property>
              <property name="maximum">
-              <double>100000.000000000000000</double>
+              <double>99.989999999999995</double>
              </property>
              <property name="singleStep">
               <double>0.100000000000000</double>
@@ -1421,10 +1421,10 @@
            <number>6</number>
           </property>
           <property name="minimum">
-           <double>-180.000000000000000</double>
+           <double>-36000.000000000000000</double>
           </property>
           <property name="maximum">
-           <double>180.000000000000000</double>
+           <double>36000.000000000000000</double>
           </property>
           <property name="singleStep">
            <double>1.000000000000000</double>
@@ -1469,10 +1469,10 @@
            <number>6</number>
           </property>
           <property name="minimum">
-           <double>-180.000000000000000</double>
+           <double>-36000.000000000000000</double>
           </property>
           <property name="maximum">
-           <double>180.000000000000000</double>
+           <double>36000.000000000000000</double>
           </property>
           <property name="singleStep">
            <double>1.000000000000000</double>
@@ -1507,10 +1507,10 @@
            <number>6</number>
           </property>
           <property name="minimum">
-           <double>-180.000000000000000</double>
+           <double>-36000.000000000000000</double>
           </property>
           <property name="maximum">
-           <double>180.000000000000000</double>
+           <double>36000.000000000000000</double>
           </property>
           <property name="singleStep">
            <double>1.000000000000000</double>
@@ -2323,7 +2323,7 @@
         <property name="text">
          <string notr="true">&lt;p&gt;DifsTorusIteration  fragmentarium code, mdifs by knighty (jan 2012)&lt;br&gt;and http://www.iquilezles.org/www/articles/distfunctions/distfunctions.htm&lt;/p&gt;&lt;table&gt;
 &lt;/table&gt;
-&lt;br&gt;&lt;b&gt;Examples using this formula&lt;/b&gt;&lt;br&gt;Graeme McLaren  collection - license Creative Commons  (CC-BY 4.0)/DIFS Torus asurf.fract&lt;h3&gt;Code&lt;/h3&gt;</string>
+&lt;br&gt;&lt;b&gt;Examples using this formula&lt;/b&gt;&lt;br&gt;Graeme McLaren  collection - license Creative Commons  (CC-BY 4.0)/DIFS Torus asurf.fract&lt;br&gt;Graeme McLaren  collection - license Creative Commons  (CC-BY 4.0)/DIFS Torus polyhedron.fract&lt;h3&gt;Code&lt;/h3&gt;</string>
         </property>
         <property name="wordWrap">
          <bool>true</bool>
@@ -2564,15 +2564,15 @@
  </widget>
  <customwidgets>
   <customwidget>
+   <class>MyDoubleSpinBox</class>
+   <extends>QDoubleSpinBox</extends>
+   <header>my_double_spin_box.h</header>
+  </customwidget>
+  <customwidget>
    <class>MyGroupBox</class>
    <extends>QGroupBox</extends>
    <header>my_group_box.h</header>
    <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>MyDoubleSpinBox</class>
-   <extends>QDoubleSpinBox</extends>
-   <header>my_double_spin_box.h</header>
   </customwidget>
   <customwidget>
    <class>MySpinBox</class>

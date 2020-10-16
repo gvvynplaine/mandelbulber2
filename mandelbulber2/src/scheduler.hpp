@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -42,6 +42,7 @@
 #include <qvector.h>
 
 #include <atomic>
+#include <vector>
 
 #include <QMutex>
 
@@ -56,11 +57,11 @@ public:
 	bool ShouldIBreak(int threadId, int actualLine) const;
 	bool ThereIsStillSomethingToDo(int ThreadId) const;
 	bool AllLinesDone() const;
-	void InitFirstLine(int threadId, int firstLine) const;
-	QList<int> GetLastRenderedLines() const;
+	void InitFirstLine(int threadId, int firstLine);
+	QList<int> GetLastRenderedLines();
 	double PercentDone() const;
 	void Stop() { stopRequest = true; }
-	void MarkReceivedLines(const QList<int> &lineNumbers) const;
+	void MarkReceivedLines(const QList<int> &lineNumbers);
 	void UpdateDoneLines(const QList<int> &done);
 
 	int GetProgressiveStep() const { return progressiveStep; }
@@ -70,12 +71,12 @@ public:
 	bool IsLineDoneByServer(int line) const;
 
 private:
-	void Reset() const;
+	void Reset();
 	int FindBiggestGap() const;
 
-	int *linePendingThreadId;
-	bool *lineDone;
-	bool *lastLinesDone;
+	std::vector<int> linePendingThreadId;
+	std::vector<bool> lineDone;
+	std::vector<bool> lastLinesDone;
 	int numberOfLines;
 	int startLine;
 	int endLine;

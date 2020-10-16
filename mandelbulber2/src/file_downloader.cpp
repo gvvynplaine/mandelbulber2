@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -37,28 +37,23 @@
 #include <QNetworkRequest>
 
 #include "global_data.hpp"
-#include "system.hpp"
+#include "wait.hpp"
 
 cFileDownloader::cFileDownloader(QString sourceBaseURL, QString targetDir) : QObject()
 {
 	this->sourceBaseURL = sourceBaseURL;
 	this->targetDir = targetDir;
-	network = new QNetworkAccessManager();
+	network.reset(new QNetworkAccessManager());
 	done = true;
 	currentFileFinished = true;
 	cntFilesAlreadyExists = 0;
 	cntFilesToDownload = 0;
 	cntFilesDownloaded = 0;
-	tempFile = nullptr;
 }
 
 cFileDownloader::~cFileDownloader()
 {
-	if (tempFile)
-	{
-		delete tempFile;
-		tempFile = nullptr;
-	}
+	// nothing to delete
 }
 
 void cFileDownloader::downloadFileList()
@@ -105,15 +100,11 @@ void cFileDownloader::fileListDownloaded()
 	{
 		QString file = filesToDownload.at(i);
 		QNetworkReply *replyFile = network->get(QNetworkRequest(QUrl(sourceBaseURL + "/" + file)));
-		if (tempFile)
-		{
-			delete tempFile;
-			tempFile = nullptr;
-		}
-		tempFile = new QFile(targetDir + QDir::separator() + file);
+
+		tempFile.reset(new QFile(targetDir + QDir::separator() + file));
 		if (!tempFile->open(QIODevice::WriteOnly))
 		{
-			qCritical() << "could not open file for writing!";
+			qCritical() << "could not open file for writing!" << tempFile->fileName();
 		}
 		else
 		{

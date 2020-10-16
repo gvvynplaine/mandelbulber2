@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2019 Mandelbulber Team        §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2019-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -49,13 +49,16 @@
 #include "netrender_file_sender.hpp"
 #include "render_window.hpp"
 #include "settings.hpp"
-#include "system.hpp"
+#include "system_data.hpp"
+#include "system_directories.hpp"
 #include "texture.hpp"
+#include "wait.hpp"
+#include "write_log.hpp"
 
-CNetRenderClient::CNetRenderClient()
+CNetRenderClient::CNetRenderClient(QObject *parent) : QObject(parent)
 {
 	clientSocket = nullptr;
-	reconnectTimer = new QTimer;
+	reconnectTimer = new QTimer(this);
 	reconnectTimer->setInterval(1000);
 	connect(reconnectTimer, &QTimer::timeout, this, &CNetRenderClient::TryServerConnect);
 	actualId = 0;
@@ -79,8 +82,6 @@ CNetRenderClient::~CNetRenderClient()
 	if (reconnectTimer)
 	{
 		if (reconnectTimer->isActive()) reconnectTimer->stop();
-		delete reconnectTimer;
-		reconnectTimer = nullptr;
 	}
 }
 
@@ -377,7 +378,7 @@ void CNetRenderClient::ProcessRequestJob(sMessage *inMsg)
 			// in noGui mode it must be started as separate thread to be able to process event loop
 			if (!gMainInterface->headless)
 			{
-				gMainInterface->headless = new cHeadless;
+				gMainInterface->headless = new cHeadless(gMainInterface);
 			}
 
 			auto *thread = new QThread; // deleted by deleteLater()
@@ -476,8 +477,8 @@ void CNetRenderClient::ProcessRequestRenderAnimation(sMessage *inMsg)
 				{
 					if (!gMainInterface->mainImage)
 					{
-						gMainInterface->mainImage =
-							new cImage(gPar->Get<int>("image_width"), gPar->Get<int>("image_height"));
+						gMainInterface->mainImage.reset(
+							new cImage(gPar->Get<int>("image_width"), gPar->Get<int>("image_height")));
 					}
 					if (!gKeyframeAnimation)
 					{
@@ -485,7 +486,7 @@ void CNetRenderClient::ProcessRequestRenderAnimation(sMessage *inMsg)
 							gMainInterface->mainImage, nullptr, gPar, gParFractal, nullptr);
 					}
 
-					if (!gMainInterface->headless) gMainInterface->headless = new cHeadless;
+					if (!gMainInterface->headless) gMainInterface->headless = new cHeadless(gMainInterface);
 
 					connect(gKeyframeAnimation,
 						SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)),
@@ -507,8 +508,8 @@ void CNetRenderClient::ProcessRequestRenderAnimation(sMessage *inMsg)
 				{
 					if (!gMainInterface->mainImage)
 					{
-						gMainInterface->mainImage =
-							new cImage(gPar->Get<int>("image_width"), gPar->Get<int>("image_height"));
+						gMainInterface->mainImage.reset(
+							new cImage(gPar->Get<int>("image_width"), gPar->Get<int>("image_height")));
 					}
 					if (!gFlightAnimation)
 					{
@@ -516,7 +517,7 @@ void CNetRenderClient::ProcessRequestRenderAnimation(sMessage *inMsg)
 							gMainInterface->mainImage, nullptr, gPar, gParFractal, nullptr);
 					}
 
-					if (!gMainInterface->headless) gMainInterface->headless = new cHeadless;
+					if (!gMainInterface->headless) gMainInterface->headless = new cHeadless(gMainInterface);
 
 					connect(gFlightAnimation,
 						SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)),
@@ -649,8 +650,8 @@ void CNetRenderClient::ProcessRequestReceivedFile(sMessage *inMsg)
 			}
 			QByteArray hash = hashCrypt.result();
 			QString hashString = hash.toHex();
-			QString fileInCache = systemData.GetNetrenderFolder() + QDir::separator() + hashString + "."
-														+ QFileInfo(requestedFileName).suffix();
+			QString fileInCache = systemDirectories.GetNetrenderFolder() + QDir::separator() + hashString
+														+ "." + QFileInfo(requestedFileName).suffix();
 
 			QFile file(fileInCache);
 			if (file.open(QIODevice::WriteOnly))

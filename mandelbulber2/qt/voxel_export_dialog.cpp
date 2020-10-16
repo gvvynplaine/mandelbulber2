@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-17 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -42,8 +42,8 @@
 #include "src/error_message.hpp"
 #include "src/initparameters.hpp"
 #include "src/interface.hpp"
-#include "src/system.hpp"
 #include "src/voxel_export.hpp"
+#include "src/write_log.hpp"
 
 cVoxelExportDialog::cVoxelExportDialog(QWidget *parent)
 		: QDialog(parent), ui(new Ui::cVoxelExportDialog)
@@ -85,13 +85,15 @@ void cVoxelExportDialog::on_pushButton_start_render_layers_clicked()
 		int samplesX = gPar->Get<int>("voxel_samples_x");
 		int samplesY = gPar->Get<int>("voxel_samples_y");
 		int samplesZ = gPar->Get<int>("voxel_samples_z");
+		bool greyscale = gPar->Get<bool>("voxel_greyscale_iterations");
 
 		QDir folder(folderString);
 		if (folder.exists())
 		{
 			slicerBusy = true;
-			voxelExport =
-				new cVoxelExport(samplesX, samplesY, samplesZ, limitMin, limitMax, folder, maxIter);
+			// voxelExport deleted by deleteLater()
+			voxelExport = new cVoxelExport(
+				samplesX, samplesY, samplesZ, limitMin, limitMax, folder, maxIter, greyscale);
 			QObject::connect(voxelExport,
 				SIGNAL(updateProgressAndStatus(const QString &, const QString &, double)), this,
 				SLOT(slotUpdateProgressAndStatus(const QString &, const QString &, double)));

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -62,21 +62,21 @@ sRGBFloat cRenderWorker::TextureShader(
 		pointFractalized = input.point;
 	}
 
-	CVector2<double> texPoint = TextureMapping(pointFractalized, input.normal, objectData, mat,
-																&textureVectorX, &textureVectorY)
-															+ CVector2<double>(0.5, 0.5);
+	CVector2<float> texPoint = TextureMapping(pointFractalized, input.normal, objectData, mat,
+															 &textureVectorX, &textureVectorY)
+														 + CVector2<float>(0.5, 0.5);
 
 	if (!mat->textureFractalize)
 	{
 		// mipmapping - calculation of texture pixel size
-		double delta = CalcDelta(input.point);
-		double deltaTexX =
+		float delta = CalcDelta(input.point);
+		float deltaTexX =
 			(TextureMapping(pointFractalized + textureVectorX * delta, input.normal, objectData, mat)
-				+ CVector2<double>(0.5, 0.5) - texPoint)
+				+ CVector2<float>(0.5, 0.5) - texPoint)
 				.Length();
-		double deltaTexY =
+		float deltaTexY =
 			(TextureMapping(pointFractalized + textureVectorY * delta, input.normal, objectData, mat)
-				+ CVector2<double>(0.5, 0.5) - texPoint)
+				+ CVector2<float>(0.5, 0.5) - texPoint)
 				.Length();
 
 		if (deltaTexX > 0.5) deltaTexX = 1.0 - deltaTexX;

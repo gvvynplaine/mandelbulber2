@@ -382,6 +382,9 @@
     </property>
     <addaction name="actionUndo"/>
     <addaction name="actionRedo"/>
+    <addaction name="separator"/>
+    <addaction name="actionRandomizeAll"/>
+    <addaction name="actionCleanSettings"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -416,7 +419,7 @@
     <set>QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
    </property>
    <property name="windowTitle">
-    <string>&amp;Image adjustments</string>
+    <string>Image adjustments</string>
    </property>
    <attribute name="dockWidgetArea">
     <number>1</number>
@@ -489,7 +492,7 @@
     <set>QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
    </property>
    <property name="windowTitle">
-    <string>&amp;Navigation</string>
+    <string>Navigation</string>
    </property>
    <attribute name="dockWidgetArea">
     <number>2</number>
@@ -604,7 +607,7 @@
     <set>QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
    </property>
    <property name="windowTitle">
-    <string>Ob&amp;jects</string>
+    <string>Objects</string>
    </property>
    <attribute name="dockWidgetArea">
     <number>1</number>
@@ -671,7 +674,7 @@
     <set>QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
    </property>
    <property name="windowTitle">
-    <string>&amp;Rendering engine</string>
+    <string>Rendering engine</string>
    </property>
    <attribute name="dockWidgetArea">
     <number>1</number>
@@ -771,7 +774,7 @@
   </widget>
   <widget class="QDockWidget" name="dockWidget_animation">
    <property name="windowTitle">
-    <string>&amp;Animation</string>
+    <string>Animation</string>
    </property>
    <attribute name="dockWidgetArea">
     <number>8</number>
@@ -801,7 +804,7 @@
   </widget>
   <widget class="QDockWidget" name="dockWidget_histogram">
    <property name="windowTitle">
-    <string>&amp;Statistics</string>
+    <string>Statistics</string>
    </property>
    <attribute name="dockWidgetArea">
     <number>8</number>
@@ -840,7 +843,7 @@
     <bool>false</bool>
    </property>
    <property name="windowTitle">
-    <string>&amp;Queue</string>
+    <string>Queue</string>
    </property>
    <attribute name="dockWidgetArea">
     <number>8</number>
@@ -907,7 +910,7 @@
     <bool>false</bool>
    </property>
    <property name="windowTitle">
-    <string>&amp;Measurement</string>
+    <string>Measurement</string>
    </property>
    <attribute name="dockWidgetArea">
     <number>2</number>
@@ -971,7 +974,7 @@
     <set>QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
    </property>
    <property name="windowTitle">
-    <string>Ma&amp;terial editor</string>
+    <string>Material editor</string>
    </property>
    <attribute name="dockWidgetArea">
     <number>1</number>
@@ -1062,7 +1065,7 @@
   </widget>
   <widget class="QDockWidget" name="dockWidget_gamepad_dock">
    <property name="windowTitle">
-    <string>&amp;Gamepad</string>
+    <string>Gamepad</string>
    </property>
    <attribute name="dockWidgetArea">
     <number>2</number>
@@ -1545,6 +1548,20 @@
    </property>
    <property name="text">
     <string>Detach image &amp;from main window</string>
+   </property>
+  </action>
+  <action name="actionRandomizeAll">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/gradient/icons/dice_colors.svg</normaloff>:/gradient/icons/dice_colors.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Randomize all...</string>
+   </property>
+  </action>
+  <action name="actionCleanSettings">
+   <property name="text">
+    <string>Clean settings...</string>
    </property>
   </action>
  </widget>

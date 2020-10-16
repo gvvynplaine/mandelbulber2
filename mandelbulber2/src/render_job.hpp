@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -39,6 +39,8 @@
 #define _USE_MATH_DEFINES
 #endif
 
+#include <memory>
+
 #include <QObject>
 
 #include "camera_target.hpp"
@@ -62,7 +64,8 @@ class cRenderJob : public QObject
 {
 	Q_OBJECT
 public:
-	cRenderJob(const cParameterContainer *_params, const cFractalContainer *_fractal, cImage *_image,
+	cRenderJob(const std::shared_ptr<cParameterContainer> _params,
+		const std::shared_ptr<cFractalContainer> _fractal, std::shared_ptr<cImage> _image,
 		bool *_stopRequest, QWidget *_qWidget = nullptr);
 	~cRenderJob() override;
 	// QWidget *parent is needed to connect signals for refreshing progress and status bar.
@@ -78,12 +81,13 @@ public:
 
 	bool Init(enumMode _mode, const cRenderingConfiguration &config);
 	bool Execute();
-	cImage *GetImagePtr() const { return image; }
+	std::shared_ptr<cImage> GetImagePtr() const { return image; }
 	int GetNumberOfCPUs() const { return totalNumberOfCPUs; }
 	void UseSizeFromImage(bool modeInput) { useSizeFromImage = modeInput; }
 	void ChangeCameraTargetPosition(cCameraTarget &cameraTarget) const;
 
-	void UpdateParameters(const cParameterContainer *_params, const cFractalContainer *_fractal);
+	void UpdateParameters(const std::shared_ptr<cParameterContainer> _params,
+		const std::shared_ptr<cFractalContainer> _fractal);
 	void UpdateConfig(const cRenderingConfiguration &config) const;
 	static int GetRunningJobCount() { return runningJobs; }
 	cStatistics GetStatistics() const;
@@ -104,11 +108,11 @@ private:
 	void ConnectNetRenderSignalsSlots(const cRenderer *renderer);
 
 #ifdef USE_OPENCL
-	bool RenderFractalWithOpenCl(
-		sParamRender *params, cNineFractals *fractals, cProgressText *progressText);
-	void RenderSSAOWithOpenCl(
-		sParamRender *params, const cRegion<int> &region, cProgressText *progressText, bool *result);
-	void RenderDOFWithOpenCl(sParamRender *params, bool *result);
+	bool RenderFractalWithOpenCl(std::shared_ptr<sParamRender> params,
+		std::shared_ptr<cNineFractals> fractals, cProgressText *progressText);
+	void RenderSSAOWithOpenCl(std::shared_ptr<sParamRender> params, const cRegion<int> &region,
+		cProgressText *progressText, bool *result);
+	void RenderDOFWithOpenCl(std::shared_ptr<sParamRender> params, bool *result);
 #endif
 
 	void LoadTextures(int frameNo, const cRenderingConfiguration &config);
@@ -117,16 +121,16 @@ private:
 	bool inProgress;
 	bool ready;
 	bool useSizeFromImage;
-	cImage *image;
-	cFractalContainer *fractalContainer;
-	cParameterContainer *paramsContainer;
+	std::shared_ptr<cImage> image;
+	std::shared_ptr<cFractalContainer> fractalContainer;
+	std::shared_ptr<cParameterContainer> paramsContainer;
 
 	enumMode mode;
 	int height;
 	int totalNumberOfCPUs;
 	int width;
 	QWidget *imageWidget;
-	sRenderData *renderData;
+	std::shared_ptr<sRenderData> renderData;
 	bool *stopRequest;
 	bool canUseNetRender;
 
@@ -136,14 +140,16 @@ private:
 signals:
 	void finished();
 	void fullyRendered(const QString &text, const QString &progressText);
+	void fullyRenderedTime(double timeSeconds);
 	void updateProgressAndStatus(const QString &text, const QString &progressText, double progress);
 	void updateStatistics(cStatistics statistics);
 	void updateImage();
 	void sendRenderedTilesList(QList<sRenderedTileData>);
-	void SendNetRenderJob(
-		cParameterContainer settings, cFractalContainer fractal, QStringList listOfTextures);
+	void SendNetRenderJob(std::shared_ptr<const cParameterContainer> settings,
+		std::shared_ptr<const cFractalContainer> fractal, QStringList listOfTextures);
 	void SendNetRenderSetup(int clientIndex, QList<int> startingPositions);
 	void SetMinimumWidgetSize(int width, int height);
+	void signalTotalRenderTime(double seconds);
 };
 
 #endif /* MANDELBULBER2_SRC_RENDER_JOB_HPP_ */

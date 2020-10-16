@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018 Mandelbulber Team        §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -47,9 +47,12 @@ double cRenderWorker::AuxShadow(
 	double shadowTemp = 1.0;
 	double iterFogSum = 0.0f;
 
+	bool cloudMode = params->cloudsEnable;
+
 	double DE_factor = params->DEFactor;
 	double volumetricLightDEFactor = params->volumetricLightDEFactor;
 	if (params->iterFogEnabled || params->volumetricLightAnyEnabled) DE_factor = 1.0;
+	if (cloudMode) DE_factor = params->DEFactor * params->volumetricLightDEFactor;
 
 	double softRange;
 	if (params->monteCarloSoftShadows)
@@ -64,7 +67,8 @@ double cRenderWorker::AuxShadow(
 
 	double maxSoft = 0.0;
 
-	const bool bSoft = !params->iterFogEnabled && !params->common.iterThreshMode && softRange > 0.0
+	const bool bSoft = !cloudMode && !params->iterFogEnabled && !params->common.iterThreshMode
+										 && softRange > 0.0
 										 && !(params->monteCarloSoftShadows && params->DOFMonteCarlo);
 
 	if (params->DOFMonteCarlo && params->monteCarloSoftShadows)
@@ -78,12 +82,16 @@ double cRenderWorker::AuxShadow(
 		lightVector += randomSphere;
 	}
 
-	for (double i = input.delta; i < distance; i += dist * DE_factor * volumetricLightDEFactor)
+	double lastDistanceToClouds = 1e6f;
+	int count = 0;
+	double step = 0.0f;
+
+	for (double i = input.delta; i < distance; i += step)
 	{
 		CVector3 point2 = input.point + lightVector * i;
 
 		float dist_thresh;
-		if (params->iterFogEnabled || params->volumetricLightAnyEnabled)
+		if (params->iterFogEnabled || params->volumetricLightAnyEnabled || cloudMode)
 		{
 			dist_thresh = CalcDistThresh(point2);
 		}
@@ -119,9 +127,18 @@ double cRenderWorker::AuxShadow(
 
 		if (params->iterFogEnabled)
 		{
-			opacity = IterOpacity(dist * DE_factor, distanceOut.iters, params->N,
-				params->iterFogOpacityTrim, params->iterFogOpacityTrimHigh, params->iterFogOpacity);
+			opacity = IterOpacity(step, distanceOut.iters, params->N, params->iterFogOpacityTrim,
+				params->iterFogOpacityTrimHigh, params->iterFogOpacity);
 
+			opacity *= (distance - i) / distance;
+			opacity = qMin(opacity, 1.0);
+			iterFogSum = opacity + (1.0 - opacity) * iterFogSum;
+		}
+		else if (cloudMode)
+		{
+			double distanceToClouds = 0.0f;
+			opacity = CloudOpacity(point2, dist, dist_thresh, &distanceToClouds) * step;
+			lastDistanceToClouds = distanceToClouds;
 			opacity *= (distance - i) / distance;
 			opacity = qMin(opacity, 1.0);
 			iterFogSum = opacity + (1.0 - opacity) * iterFogSum;
@@ -146,6 +163,12 @@ double cRenderWorker::AuxShadow(
 			}
 			break;
 		}
+
+		step = std::min(dist, lastDistanceToClouds) * DE_factor;
+		step = std::max(step, 1e-15);
+
+		count++;
+		if (count > MAX_RAYMARCHING) break;
 	}
 
 	if (!bSoft)

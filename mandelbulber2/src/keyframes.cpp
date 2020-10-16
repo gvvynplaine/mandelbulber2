@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2015-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2015-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -39,7 +39,9 @@
 
 #include "keyframes.hpp"
 
-cKeyframes *gKeyframes = nullptr;
+#include <QDebug>
+
+std::shared_ptr<cKeyframes> gKeyframes;
 
 cKeyframes::cKeyframes() : cAnimationFrames()
 {
@@ -75,8 +77,8 @@ cKeyframes &cKeyframes::operator=(const cKeyframes &source)
 	return *this;
 }
 
-cAnimationFrames::sAnimationFrame cKeyframes::GetInterpolatedFrame(
-	int index, cParameterContainer *params, cFractalContainer *fractal)
+cAnimationFrames::sAnimationFrame cKeyframes::GetInterpolatedFrame(int index,
+	std::shared_ptr<cParameterContainer> params, std::shared_ptr<cFractalContainer> fractal)
 {
 	Q_UNUSED(fractal);
 	int keyframe = index / framesPerKeyframe;
@@ -120,8 +122,8 @@ cAnimationFrames::sAnimationFrame cKeyframes::GetInterpolatedFrame(
 	return interpolated;
 }
 
-void cKeyframes::GetInterpolatedFrameAndConsolidate(
-	int index, cParameterContainer *params, cFractalContainer *fractal)
+void cKeyframes::GetInterpolatedFrameAndConsolidate(int index,
+	std::shared_ptr<cParameterContainer> params, std::shared_ptr<cFractalContainer> fractal)
 {
 	if (index >= 0 && index < frames.count() * framesPerKeyframe)
 	{
@@ -129,7 +131,7 @@ void cKeyframes::GetInterpolatedFrameAndConsolidate(
 
 		for (auto &listOfParameter : listOfParameters)
 		{
-			cParameterContainer *container =
+			std::shared_ptr<cParameterContainer> container =
 				ContainerSelector(listOfParameter.containerName, params, fractal);
 			QString parameterName = listOfParameter.parameterName;
 			cOneParameter oneParameter =
@@ -165,15 +167,15 @@ void cKeyframes::ChangeMorphType(int parameterIndex, parameterContainer::enumMor
 		}
 	}
 }
-void cKeyframes::AddAnimatedParameter(
-	const QString &parameterName, const cOneParameter &defaultValue, cParameterContainer *params)
+void cKeyframes::AddAnimatedParameter(const QString &parameterName,
+	const cOneParameter &defaultValue, std::shared_ptr<cParameterContainer> params)
 {
 	morph.clear();
 	cAnimationFrames::AddAnimatedParameter(parameterName, defaultValue, params);
 }
 
-bool cKeyframes::AddAnimatedParameter(
-	const QString &fullParameterName, cParameterContainer *param, const cFractalContainer *fractal)
+bool cKeyframes::AddAnimatedParameter(const QString &fullParameterName,
+	std::shared_ptr<cParameterContainer> param, std::shared_ptr<cFractalContainer> fractal)
 {
 	morph.clear();
 	return cAnimationFrames::AddAnimatedParameter(fullParameterName, param, fractal);

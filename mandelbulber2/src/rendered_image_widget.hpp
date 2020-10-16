@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,6 +35,8 @@
 
 #ifndef MANDELBULBER2_SRC_RENDERED_IMAGE_WIDGET_HPP_
 #define MANDELBULBER2_SRC_RENDERED_IMAGE_WIDGET_HPP_
+
+#include <memory>
 
 #include <QWidget>
 
@@ -94,8 +96,9 @@ public:
 	};
 
 	RenderedImage(QWidget *parent = nullptr);
-	void AssignImage(cImage *_image) { image = _image; }
-	void AssignParameters(cParameterContainer *_mainParams, cFractalContainer *_fractals)
+	void AssignImage(std::shared_ptr<cImage> _image) { image = _image; }
+	void AssignParameters(
+		std::shared_ptr<cParameterContainer> _mainParams, std::shared_ptr<cFractalContainer> _fractals)
 	{
 		params = _mainParams;
 		fractals = _fractals;
@@ -157,9 +160,9 @@ private:
 	bool clickModesEnables;
 	int draggingStarted;
 	bool draggingInitStarted;
-	cFractalContainer *fractals;
-	cImage *image;
-	cParameterContainer *params;
+	std::shared_ptr<cFractalContainer> fractals;
+	std::shared_ptr<cImage> image;
+	std::shared_ptr<cParameterContainer> params;
 	CVector2<double> keyArrows;
 	CVector2<int> lastMousePosition;
 	CVector2<int> dragStartPosition;

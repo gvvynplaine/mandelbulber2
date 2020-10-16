@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -49,17 +49,20 @@
 #include "opencl_engine_render_fractal.h"
 #include "opencl_global.h"
 #include "render_data.hpp"
+#include "system_data.hpp"
+#include "write_log.hpp"
 
 // custom includes
 #ifdef USE_OPENCL
 #include "opencl/mesh_export_data_cl.h"
 #endif
 
-MarchingCubes::MarchingCubes(const cParameterContainer *paramsContainer,
-	const cFractalContainer *fractalContainer, sParamRender *params, cNineFractals *fractals,
-	sRenderData *renderData, int numx, int numy, int numz, const CVector3 &lower,
-	const CVector3 &upper, double dist_thresh, bool *stop, std::vector<double> &vertices,
-	std::vector<long long> &polygons, std::vector<double> &colorIndices)
+MarchingCubes::MarchingCubes(std::shared_ptr<const cParameterContainer> paramsContainer,
+	std::shared_ptr<const cFractalContainer> fractalContainer, std::shared_ptr<sParamRender> params,
+	std::shared_ptr<cNineFractals> fractals, std::shared_ptr<sRenderData> renderData, int numx,
+	int numy, int numz, const CVector3 &lower, const CVector3 &upper, double dist_thresh, bool *stop,
+	std::vector<double> &vertices, std::vector<long long> &polygons,
+	std::vector<double> &colorIndices)
 		: vertices{vertices}, polygons{polygons}, colorIndices{colorIndices}
 {
 	this->numx = numx;
@@ -89,17 +92,13 @@ MarchingCubes::MarchingCubes(const cParameterContainer *paramsContainer,
 
 	this->stop = stop;
 
-	shared_indices = nullptr;
-	voxelBuffer = nullptr;
-	colorBuffer = nullptr;
-
 	coloredMesh = paramsContainer->Get<bool>("mesh_color");
 
 	try
 	{
-		shared_indices = new long long[2 * numy * numz * 3];
-		voxelBuffer = new double[2 * numyzb];
-		colorBuffer = new double[2 * numyzb];
+		shared_indices.resize(2LL * numy * numz * 3);
+		voxelBuffer.resize(2LL * numyzb);
+		colorBuffer.resize(2LL * numyzb);
 	}
 	catch (std::bad_alloc &ba)
 	{
@@ -110,9 +109,9 @@ MarchingCubes::MarchingCubes(const cParameterContainer *paramsContainer,
 
 void MarchingCubes::FreeBuffers()
 {
-	if (shared_indices) delete[] shared_indices;
-	if (voxelBuffer) delete[] voxelBuffer;
-	if (colorBuffer) delete[] colorBuffer;
+	shared_indices.clear();
+	voxelBuffer.clear();
+	colorBuffer.clear();
 }
 
 void MarchingCubes::RunMarchingCube()
@@ -163,7 +162,7 @@ void MarchingCubes::RunMarchingCube()
 	// numx, numy and numz are the numbers of evaluations in each direction
 	for (long long i = 0; i < numx; ++i)
 	{
-		emit updateProgressAndStatus(i);
+		emit signalUpdateProgressAndStatus(i, polygons.size());
 
 		// shift voxel planes
 		if (i > 0)
@@ -181,8 +180,8 @@ void MarchingCubes::RunMarchingCube()
 		if (openClEnabled)
 		{
 			size_t dataOffset = clMeshParams.sliceHeight * clMeshParams.sliceWidth;
-			bool result = gOpenCl->openClEngineRenderFractal->Render(
-				voxelBuffer, colorBuffer, i, renderData->stopRequest, renderData, dataOffset);
+			bool result = gOpenCl->openClEngineRenderFractal->Render(&voxelBuffer, &colorBuffer, nullptr,
+				i, renderData->stopRequest, renderData.get(), dataOffset);
 
 			if (!result)
 			{
@@ -443,7 +442,8 @@ __declspec(target(mic))
 	sDistanceOut distanceOut;
 	sDistanceIn distanceIn(point, dist_thresh, false);
 
-	double dist = CalculateDistance(*params, *fractals, distanceIn, &distanceOut, renderData);
+	double dist =
+		CalculateDistance(*params.get(), *fractals.get(), distanceIn, &distanceOut, renderData.get());
 
 	cObjectData objectData = renderData->objectData[distanceOut.objectId];
 	cMaterial *material = &renderData->materials[objectData.materialId];

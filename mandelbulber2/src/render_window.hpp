@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -43,8 +43,6 @@
 #include <QMainWindow>
 #include <QMessageBox>
 #include <QSettings>
-#include <QtCore>
-#include <QtGui>
 
 #include "files.h"
 #include "progress_text.hpp"
@@ -100,6 +98,9 @@ public slots:
 		cProgressText::enumProgressType progressType = cProgressText::progress_IMAGE) const;
 	void slotPopulateToolbar(bool completeRefresh = false);
 	void slotPopulateCustomWindowStates(bool completeRefresh = false);
+	void slotQuestionMessage(const QString &questionTitle, const QString &questionText,
+		QMessageBox::StandardButtons buttons, QMessageBox::StandardButton *reply) const;
+
 private slots:
 	static void slotQuit();
 
@@ -125,8 +126,6 @@ private slots:
 	void slotMenuProgramPreferences();
 	void slotExportVoxelLayers();
 	void slotExportMesh();
-	void slotQuestionMessage(const QString &questionTitle, const QString &questionText,
-		QMessageBox::StandardButtons buttons, QMessageBox::StandardButton *reply) const;
 	static void slotAutoRefresh();
 	void slotMaterialSelected(int matIndex) const;
 	static void slotMaterialEdited();
@@ -171,6 +170,8 @@ private slots:
 	void slotMenuSaveSettings();
 	static void slotMenuSaveSettingsToClipboard();
 	static void slotMenuUndo();
+	void slotMenuRandomizeAll();
+	void slotCleanSettings();
 	void slotUpdateDocksAndToolbarByAction();
 	void slotUpdateDocksAndToolbarByView() const;
 	void slotStackAllDocks();

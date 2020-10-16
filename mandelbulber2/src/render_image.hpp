@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,6 +35,9 @@
 #ifndef MANDELBULBER2_SRC_RENDER_IMAGE_HPP_
 #define MANDELBULBER2_SRC_RENDER_IMAGE_HPP_
 
+#include <memory>
+
+#include <QElapsedTimer>
 #include <QObject>
 
 #include "render_worker.hpp"
@@ -53,17 +56,18 @@ class cRenderer : public QObject
 {
 	Q_OBJECT
 public:
-	cRenderer(const sParamRender *_params, const cNineFractals *_fractal, sRenderData *_renderData,
-		cImage *_image);
+	cRenderer(std::shared_ptr<const sParamRender> _params,
+		std::shared_ptr<const cNineFractals> _fractal, std::shared_ptr<sRenderData> _renderData,
+		std::shared_ptr<cImage> _image);
 	~cRenderer() override;
 	bool RenderImage();
 
 private:
 	void CreateLineData(int y, QByteArray *lineData) const;
 	int InitProgresiveSteps();
-	void InitializeThreadData(cRenderWorker::sThreadData *threadData);
-	void LaunchThreads(
-		QThread **thread, cRenderWorker **worker, cRenderWorker::sThreadData *threadData);
+	void InitializeThreadData(std::vector<std::shared_ptr<cRenderWorker::sThreadData>> &threadData);
+	void LaunchThreads(std::vector<QThread *> &threads, std::vector<cRenderWorker *> &workers,
+		std::vector<std::shared_ptr<cRenderWorker::sThreadData>> &threadsData);
 	void TerminateRendering();
 	double PeriodicUpdateStatusAndProgressBar(QString &statusText, QString &progressTxt,
 		cProgressText &progressText, QElapsedTimer &timerProgressRefresh);
@@ -75,11 +79,11 @@ private:
 	void RenderDOF();
 	void RenderHDRBlur();
 
-	const sParamRender *params;
-	const cNineFractals *fractal;
-	sRenderData *data;
-	cImage *image;
-	cScheduler *scheduler;
+	std::shared_ptr<const sParamRender> params;
+	std::shared_ptr<const cNineFractals> fractal;
+	std::shared_ptr<sRenderData> data;
+	std::shared_ptr<cImage> image;
+	std::shared_ptr<cScheduler> scheduler;
 	bool netRenderAckReceived;
 
 public slots:
@@ -95,6 +99,7 @@ signals:
 	void StopAllClients();
 	void NotifyClientStatus();
 	void updateImage();
+	void signalTotalRenderTime(double seconds);
 };
 
 #endif /* MANDELBULBER2_SRC_RENDER_IMAGE_HPP_ */

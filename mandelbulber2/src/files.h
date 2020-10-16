@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,12 +35,10 @@
 #ifndef MANDELBULBER2_SRC_FILES_H_
 #define MANDELBULBER2_SRC_FILES_H_
 
+#include <memory>
 #include <string>
 
-#include <QtCore>
-
 #include "file_image.hpp"
-#include "system.hpp"
 
 // forward declarations
 class cImage;
@@ -50,14 +48,15 @@ extern std::string logfileName;
 std::string IndexFilename(const char *filename, const char *extension, int number);
 bool FileIfExists(const char *filename);
 int fcopy(const char *source, const char *dest);
+int fcopy(const QString &source, const QString &dest);
 std::string removeFileExtension(const std::string &filename);
 void BufferNormalize16(sRGB16 *buffer, unsigned int size);
 // void SaveAllImageLayers(const char *filename, cImage *image);
 
 // SaveImage() returns list of saved files
-QStringList SaveImage(QString filename, ImageFileSave::enumImageFileType fileType, cImage *image,
-	QObject *updateReceiver = nullptr);
-sRGBA16 *LoadPNG(QString filename, int &outWidth, int &outHeight);
+QStringList SaveImage(QString filename, ImageFileSave::enumImageFileType fileType,
+	std::shared_ptr<cImage> image, QObject *updateReceiver = nullptr);
+std::vector<sRGBA16> LoadPNG(QString filename, int &outWidth, int &outHeight);
 
 bool FileExists(const QString &path);
 QString FilePathHelper(const QString &path, const QStringList &pathList);

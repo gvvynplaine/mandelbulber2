@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -36,6 +36,8 @@
 #ifndef MANDELBULBER2_SRC_OPENCL_ENGINE_RENDER_FRACTAL_H_
 #define MANDELBULBER2_SRC_OPENCL_ENGINE_RENDER_FRACTAL_H_
 
+#include <memory>
+
 #include "fractal_enums.h"
 #include "include_header_wrapper.hpp"
 #include "opencl_engine.h"
@@ -67,22 +69,25 @@ class cOpenClEngineRenderFractal : public cOpenClEngine
 public:
 	enum enumClRenderEngineMode
 	{
-		clRenderEngineTypeNone,
-		clRenderEngineTypeFast,
-		clRenderEngineTypeLimited,
-		clRenderEngineTypeFull
+		clRenderEngineTypeNone = 0,
+		clRenderEngineTypeFast = 1,
+		clRenderEngineTypeLimited = 2,
+		clRenderEngineTypeFull = 3
 	};
 
-	cOpenClEngineRenderFractal(cOpenClHardware *hardware);
+	cOpenClEngineRenderFractal(cOpenClHardware *_hardware);
 	~cOpenClEngineRenderFractal() override;
 
 #ifdef USE_OPENCL
-	bool LoadSourcesAndCompile(const cParameterContainer *params) override;
-	void SetParameters(const cParameterContainer *paramContainer,
-		const cFractalContainer *fractalContainer, sParamRender *paramRender, cNineFractals *fractals,
-		sRenderData *renderData, bool meshExportModeEnable);
-	void RegisterInputOutputBuffers(const cParameterContainer *params) override;
-	bool PreAllocateBuffers(const cParameterContainer *params) override;
+	bool LoadSourcesAndCompile(std::shared_ptr<const cParameterContainer> params,
+		QString *compilerErrorOutput = nullptr) override;
+	void SetParameters(std::shared_ptr<const cParameterContainer> paramContainer,
+		std::shared_ptr<const cFractalContainer> fractalContainer,
+		std::shared_ptr<sParamRender> paramRender, std::shared_ptr<cNineFractals> fractals,
+		std::shared_ptr<sRenderData> renderData, bool meshExportModeEnable);
+	void SetDistanceMode() { distanceMode = true; }
+	void RegisterInputOutputBuffers(std::shared_ptr<const cParameterContainer> params) override;
+	bool PreAllocateBuffers(std::shared_ptr<const cParameterContainer> params) override;
 	bool PrepareBufferForBackground(sRenderData *renderData);
 	bool AssignParametersToKernelAdditional(uint argIterator, int deviceIndex) override;
 	bool WriteBuffersToQueue();
@@ -90,13 +95,16 @@ public:
 	bool ReadBuffersFromQueue();
 
 	// render 3D fractal
-	bool Render(cImage *image, bool *stopRequest, sRenderData *renderData);
+	bool Render(std::shared_ptr<cImage> image, bool *stopRequest, sRenderData *renderData);
 	// render 3D fractal
-	bool RenderMulti(cImage *image, bool *stopRequest, sRenderData *renderData);
+	bool RenderMulti(std::shared_ptr<cImage> image, bool *stopRequest, sRenderData *renderData);
+	// calculate distance using OpenCL
+	float CalculateDistance(CVector3 point);
 
 	// render 2D slice with fractal
-	bool Render(double *distances, double *colors, int sliceIndex, bool *stopRequest,
-		sRenderData *renderData, size_t dataOffset);
+	bool Render(std::vector<double> *distances, std::vector<double> *colors,
+		std::vector<int> *iterations, int sliceIndex, bool *stopRequest, sRenderData *renderData,
+		size_t dataOffset);
 
 	QList<QPoint> calculateOptimalTileSequence(int gridWidth, int gridHeight);
 	static bool sortByCenterDistanceAsc(
@@ -110,66 +118,75 @@ private:
 	const int outputIndex = 0;
 	const int outputMeshDistancesIndex = 0;
 	const int outputMeshColorsIndex = 1;
+	const int outputMeshIterationsIndex = 2;
 
 	QString GetKernelName() override;
 
 	static QString toCamelCase(const QString &s);
 	void CreateListOfHeaderFiles(QStringList &clHeaderFiles);
 	void CreateListOfIncludes(const QStringList &clHeaderFiles, const QString &openclPathSlash,
-		const cParameterContainer *params, const QString &openclEnginePath, QByteArray &programEngine);
+		std::shared_ptr<const cParameterContainer> params, const QString &openclEnginePath,
+		QByteArray &programEngine);
 	void LoadSourceWithMainEngine(const QString &openclEnginePath, QByteArray &programEngine);
 	void SetParametersForDistanceEstimationMethod(cNineFractals *fractals, sParamRender *paramRender);
-	void CreateListOfUsedFormulas(cNineFractals *fractals);
+	void CreateListOfUsedFormulas(
+		cNineFractals *fractals, std::shared_ptr<const cFractalContainer> fractalContainer);
 	void SetParametersForPerspectiveProjection(sParamRender *paramRender);
 	void SetParametersForShaders(sParamRender *paramRender, sRenderData *renderData);
 	void SetParametersForStereoscopic(sRenderData *renderData);
 	QMap<QString, int> SetParametersAndDataForTextures(sRenderData *renderData);
 	void SetParametersAndDataForMaterials(
 		const QMap<QString, int> &textureIndexes, sRenderData *renderData, sParamRender *paramRender);
-	void DynamicDataForAOVectors(
-		sParamRender *paramRender, cNineFractals *fractals, sRenderData *renderData);
+	void DynamicDataForAOVectors(std::shared_ptr<const sParamRender> paramRender,
+		std::shared_ptr<const cNineFractals> fractals, std::shared_ptr<sRenderData> renderData);
 	void SetParametersForIterationWeight(cNineFractals *fractals);
 	void CreateThreadsForOpenCLWorkers(int numberOfOpenCLWorkers,
-		const QSharedPointer<cOpenClScheduler> &scheduler, quint64 width, quint64 height,
-		const QSharedPointer<cOpenCLWorkerOutputQueue> &outputQueue, int numberOfSamples,
-		int antiAliasingDepth, QList<QSharedPointer<QThread>> &threads,
-		QList<QSharedPointer<cOpenClWorkerThread>> &workers, bool *stopRequest);
+		const std::shared_ptr<cOpenClScheduler> &scheduler, quint64 width, quint64 height,
+		const std::shared_ptr<cOpenCLWorkerOutputQueue> &outputQueue, int numberOfSamples,
+		int antiAliasingDepth, QList<std::shared_ptr<QThread>> &threads,
+		QList<std::shared_ptr<cOpenClWorkerThread>> &workers, bool *stopRequest);
 	sRGBFloat MCMixColor(const cOpenCLWorkerOutputQueue::sClSingleOutput &output,
 		const sRGBFloat &pixel, const sRGBFloat &oldPixel);
 	void PutMultiPixel(quint64 xx, quint64 yy, const sRGBFloat &newPixel, const sClPixel &pixelCl,
-		unsigned short newAlpha, sRGB8 color, unsigned short opacity, cImage *image);
-	int PeriodicRefreshOfTiles(int lastRefreshTime, QElapsedTimer &timerImageRefresh, cImage *image,
-		QList<QRect> &lastRenderedRects, QList<sRenderedTileData> &listOfRenderedTilesData);
-	void FinallRefreshOfImage(QList<QRect> lastRenderedRects, cImage *image);
+		unsigned short newAlpha, sRGB8 color, unsigned short opacity, std::shared_ptr<cImage> &image);
+	int PeriodicRefreshOfTiles(int lastRefreshTime, QElapsedTimer &timerImageRefresh,
+		std::shared_ptr<cImage> image, QList<QRect> &lastRenderedRects,
+		QList<sRenderedTileData> &listOfRenderedTilesData);
+	void FinallRefreshOfImage(QList<QRect> lastRenderedRects, std::shared_ptr<cImage> image);
 
-	QScopedPointer<sClInConstants> constantInBuffer;
-	QList<QSharedPointer<cl::Buffer>> inCLConstBuffer;
+	std::unique_ptr<sClInConstants> constantInBuffer;
+	QList<std::shared_ptr<cl::Buffer>> inCLConstBuffer;
 
-	QScopedPointer<sClMeshExport> constantInMeshExportBuffer;
-	QList<QSharedPointer<cl::Buffer>> inCLConstMeshExportBuffer;
+	std::unique_ptr<sClMeshExport> constantInMeshExportBuffer;
+	QList<std::shared_ptr<cl::Buffer>> inCLConstMeshExportBuffer;
 
 	// FIXME: replace QByteArray with std::vector
 	QByteArray inBuffer;
-	QList<QSharedPointer<cl::Buffer>> inCLBuffer;
+	QList<std::shared_ptr<cl::Buffer>> inCLBuffer;
 
 	QByteArray inTextureBuffer;
-	QList<QSharedPointer<cl::Buffer>> inCLTextureBuffer;
+	QList<std::shared_ptr<cl::Buffer>> inCLTextureBuffer;
 
-	QList<QSharedPointer<cl::Image2D>> backgroundImage2D;
+	QList<std::shared_ptr<cl::Image2D>> backgroundImage2D;
+	std::vector<cl_float4> backgroundImageBuffer;
 
-	// FIXME: replace QScopedArrayPointer with std::vector
-	QScopedArrayPointer<cl_uchar4> backgroungImageBuffer;
+	std::vector<cl_char> perlinNoiseSeeds;
+	QList<std::shared_ptr<cl::Buffer>> inCLPerlinNoiseSeedsBuffer;
+	const int perlinNoiseArraySize = 512;
 
-	QScopedPointer<cOpenClDynamicData> dynamicData;
-	QScopedPointer<cOpenClTexturesData> texturesData;
+	std::unique_ptr<cOpenClDynamicData> dynamicData;
+	std::unique_ptr<cOpenClTexturesData> texturesData;
 
 	QStringList listOfUsedFormulas;
+	QStringList customFormulaCodes;
 
 	enumClRenderEngineMode renderEngineMode;
 
 	bool autoRefreshMode;
 	bool monteCarlo;
 	bool meshExportMode;
+	cl_float3 pointToCalculateDistance;
+	bool distanceMode;
 	double reservedGpuTime;
 
 #endif

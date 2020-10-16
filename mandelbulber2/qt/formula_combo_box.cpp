@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -39,6 +39,7 @@
 
 #include "formula_combo_box.h"
 
+#include <QDebug>
 #include <QLineEdit>
 #include <QStandardItemModel>
 #include <QWidget>
@@ -46,6 +47,7 @@
 #include "src/common_math.h"
 #include "src/parameters.hpp"
 #include "src/random.hpp"
+#include "src/write_log.hpp"
 
 QMap<QString, QIcon> cFormulaComboBox::iconCache;
 
@@ -76,7 +78,6 @@ cFormulaComboBox::cFormulaComboBox(QWidget *parent) : QComboBox(parent), CommonM
 	// connect signals
 	connect(qobject_cast<const QObject *>(lineEdit()), SIGNAL(textEdited(const QString &)),
 		pFilterModel, SLOT(setFilterFixedString(const QString &)));
-	connect(completer, SIGNAL(activated(QString)), this, SLOT(onCompleterActivated(QString)));
 }
 
 cFormulaComboBox::~cFormulaComboBox()
@@ -112,13 +113,14 @@ void cFormulaComboBox::setModel(QAbstractItemModel *model)
 	completer->setModel(pFilterModel);
 }
 
-void cFormulaComboBox::populateItemsFromFractalList(QList<sFractalDescription> fractalList,
+void cFormulaComboBox::populateItemsFromFractalList(QList<cAbstractFractal *> fractalList,
 	QList<QPair<int, QString> /* */> insertHeader, int randomSeedForColors)
 {
 	clear();
 	for (int f = 0; f < fractalList.size(); f++)
 	{
-		addItem(GetIconFromCache(fractalList[f].getIconName()), fractalList[f].nameInComboBox, f);
+		addItem(
+			GetIconFromCache(fractalList[f]->getIconName()), fractalList[f]->getNameInComboBox(), f);
 	}
 
 	// set headings and separator of formulas and transforms
@@ -146,7 +148,7 @@ void cFormulaComboBox::populateItemsFromFractalList(QList<sFractalDescription> f
 		int comboIndex = -1;
 		for (int fIndex = 0; fIndex < fractalList.size(); fIndex++)
 		{
-			if (fractalList.at(fIndex).internalID == header.first)
+			if (fractalList.at(fIndex)->getInternalId() == header.first)
 			{
 				// should be fIndex, but every new header inserts two new items, which have to be added
 				comboIndex = fIndex + 2 * hIndex;
@@ -234,9 +236,9 @@ void cFormulaComboBox::resetToDefault()
 	int selection = defaultValue;
 	if (parameterName == QString("formula"))
 	{
-		for (int i = 0; i < fractalList.size(); i++)
+		for (int i = 0; i < newFractalList.size(); i++)
 		{
-			if (fractalList[i].internalID == selection)
+			if (newFractalList[i]->getInternalId() == selection)
 			{
 				selection = findData(i);
 				break;

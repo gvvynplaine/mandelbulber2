@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,7 +34,7 @@
 
 float3 ObjectShader(__constant sClInConstants *consts, sRenderData *renderData,
 	sShaderInputDataCl *input, sClCalcParams *calcParam, float3 *outSurfaceColor, float3 *outSpecular,
-	float3 *iridescenceOut, sClGradientsCollection *gradients)
+	float3 *iridescenceOut, float *alphaOut, sClGradientsCollection *gradients)
 {
 	float3 color = 0.7f;
 	float3 mainLight = consts->params.mainLightColour * consts->params.mainLightIntensity;
@@ -42,6 +42,7 @@ float3 ObjectShader(__constant sClInConstants *consts, sRenderData *renderData,
 	float3 shade = 0.0f;
 	float3 specular = 0.0f;
 	float3 shadow = 1.0f;
+	*alphaOut = 1.0f;
 
 	float3 fillLight = consts->params.fillLightColor;
 
@@ -55,6 +56,13 @@ float3 ObjectShader(__constant sClInConstants *consts, sRenderData *renderData,
 		if (consts->params.shadow)
 		{
 			shadow = MainShadow(consts, renderData, input, calcParam);
+			if (consts->params.allPrimitivesInvisibleAlpha)
+			{
+				if (input->objectId >= 9) // if not fractal
+				{
+					*alphaOut = 1.0f - (shadow.s0 + shadow.s1 + shadow.s2) / 3.0f;
+				}
+			}
 		}
 #endif
 	}

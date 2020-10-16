@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-17 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -42,6 +42,8 @@
 
 #include <qprogressbar.h>
 
+#include <memory>
+
 #include <QElapsedTimer>
 #include <QWidget>
 
@@ -54,17 +56,21 @@ class cThumbnailWidget : public QWidget
 {
 	Q_OBJECT
 public:
-	cThumbnailWidget(QWidget *parent);
-	cThumbnailWidget(int _width, int _height, int _oversample, QWidget *parent);
+	cThumbnailWidget(QWidget *parent = nullptr);
+	cThumbnailWidget(int _width, int _height, int _oversample, QWidget *parent = nullptr);
 	~cThumbnailWidget() override;
 	void Init(QWidget *parent);
 	void SetSize(int _width, int _height, int _oversample);
-	void AssignParameters(const cParameterContainer &_params, const cFractalContainer &_fractal);
+	void AssignParameters(std::shared_ptr<const cParameterContainer> _params,
+		std::shared_ptr<const cFractalContainer> _fractal);
 	void UseOneCPUCore(bool onlyOne) { useOneCPUCore = onlyOne; }
 	void DisableTimer() { disableTimer = true; }
+	void DisableRenderOnPaint() { disableRenderOnPaint = true; }
 	void DisableThumbnailCache() { disableThumbnailCache = true; }
-	bool IsRendered() const { return isRendered; }
+	bool IsRendered() const { return isFullyRendered; }
+	std::shared_ptr<cImage> GetImage() { return image; };
 	QString GetThumbnailFileName() const;
+	void StopRequest() { stopRequest = true; }
 
 	static int instanceCount;
 	int instanceIndex;
@@ -81,9 +87,9 @@ public slots:
 	void slotRender();
 
 private:
-	cImage *image;
-	cParameterContainer *params;
-	cFractalContainer *fractal;
+	std::shared_ptr<cImage> image;
+	std::shared_ptr<cParameterContainer> params;
+	std::shared_ptr<cFractalContainer> fractal;
 	int tWidth;
 	int tHeight;
 	int oversample;
@@ -92,9 +98,11 @@ private:
 	QProgressBar *progressBar;
 	bool stopRequest;
 	bool isRendered;
+	bool isFullyRendered;
 	bool hasParameters;
 	bool useOneCPUCore;
 	bool disableTimer;
+	bool disableRenderOnPaint = false;
 	bool disableThumbnailCache;
 	// timer for random trigger for rendering (renders thumbnail even when is not visible)
 	QTimer *timer;
@@ -108,6 +116,9 @@ signals:
 	void thumbnailRendered();
 	void updateProgressAndStatus(const QString &text, const QString &progressText, double progress);
 	void settingsChanged();
+	void signalZeroDistance();
+	void signalTotalRenderTime(double seconds);
+	void signalFinished();
 };
 
 #endif /* MANDELBULBER2_QT_THUMBNAIL_WIDGET_H_ */

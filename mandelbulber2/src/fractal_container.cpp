@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-16 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -34,9 +34,43 @@
 
 #include "fractal_container.hpp"
 
-cFractalContainer *gParFractal = nullptr;
+#include <QDebug>
 
-cParameterContainer &cFractalContainer::operator[](int index)
+std::shared_ptr<cFractalContainer> gParFractal;
+
+cFractalContainer::cFractalContainer()
+{
+	fractals.resize(NUMBER_OF_FRACTALS);
+	for (int i = 0; i < NUMBER_OF_FRACTALS; i++)
+	{
+		fractals[i].reset(new cParameterContainer());
+	}
+}
+
+cFractalContainer::cFractalContainer(const cFractalContainer &other)
+{
+	fractals.resize(NUMBER_OF_FRACTALS);
+	for (int i = 0; i < NUMBER_OF_FRACTALS; i++)
+	{
+		fractals[i].reset(new cParameterContainer());
+		*fractals[i] = *other.fractals[i];
+	}
+}
+
+cFractalContainer &cFractalContainer::operator=(const cFractalContainer &other)
+{
+	if (&other == this) return *this;
+
+	fractals.resize(NUMBER_OF_FRACTALS);
+	for (int i = 0; i < NUMBER_OF_FRACTALS; i++)
+	{
+		fractals[i].reset(new cParameterContainer());
+		*fractals[i] = *other.fractals[i];
+	}
+	return *this;
+}
+
+std::shared_ptr<cParameterContainer> cFractalContainer::operator[](int index)
 {
 	if (index >= 0 && index < NUMBER_OF_FRACTALS)
 	{
@@ -50,7 +84,7 @@ cParameterContainer &cFractalContainer::operator[](int index)
 	}
 }
 
-const cParameterContainer &cFractalContainer::operator[](int index) const
+const std::shared_ptr<cParameterContainer> cFractalContainer::operator[](int index) const
 {
 	if (index >= 0 && index < NUMBER_OF_FRACTALS)
 	{
@@ -65,7 +99,7 @@ const cParameterContainer &cFractalContainer::operator[](int index) const
 	}
 }
 
-cParameterContainer &cFractalContainer::at(int index)
+std::shared_ptr<cParameterContainer> cFractalContainer::at(int index)
 {
 	if (index >= 0 && index < NUMBER_OF_FRACTALS)
 	{
@@ -78,7 +112,7 @@ cParameterContainer &cFractalContainer::at(int index)
 	}
 }
 
-const cParameterContainer &cFractalContainer::at(int index) const
+const std::shared_ptr<cParameterContainer> cFractalContainer::at(int index) const
 {
 	if (index >= 0 && index < NUMBER_OF_FRACTALS)
 	{
@@ -90,4 +124,18 @@ const cParameterContainer &cFractalContainer::at(int index) const
 								<< index;
 		return fractals[0];
 	}
+}
+
+bool cFractalContainer::isUsedCustomFormula()
+{
+	bool used = false;
+	for (int i = 0; i < NUMBER_OF_FRACTALS; i++)
+	{
+		if (!fractals[i]->isDefaultValue("formula_code"))
+		{
+			used = true;
+			break;
+		}
+	}
+	return used;
 }

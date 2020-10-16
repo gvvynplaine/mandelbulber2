@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-17 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -50,7 +50,7 @@ cDockQueue::cDockQueue(QWidget *parent) : QWidget(parent), ui(new Ui::cDockQueue
 	ui->queueProgressBarAnimation->setAlignment(Qt::AlignCenter);
 	ui->queueProgressBarAnimation->hide();
 
-	renderedImageWidget = new RenderedImage;
+	renderedImageWidget = new RenderedImage(this);
 	renderedImageWidget->SetCursorVisibility(false);
 	ui->verticalLayout_queue_preview->addWidget(renderedImageWidget);
 }
@@ -58,7 +58,6 @@ cDockQueue::cDockQueue(QWidget *parent) : QWidget(parent), ui(new Ui::cDockQueue
 cDockQueue::~cDockQueue()
 {
 	delete ui;
-	if (renderedImageWidget) delete renderedImageWidget;
 }
 
 MyProgressBar *cDockQueue::GetProgressBarImage() const

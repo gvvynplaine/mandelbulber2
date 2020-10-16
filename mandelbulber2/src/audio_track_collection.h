@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,7 +35,10 @@
 #ifndef MANDELBULBER2_SRC_AUDIO_TRACK_COLLECTION_H_
 #define MANDELBULBER2_SRC_AUDIO_TRACK_COLLECTION_H_
 
-#include <QtCore>
+#include <memory>
+
+#include <QMap>
+#include <QString>
 
 // forward declarations
 class cAudioTrack;
@@ -52,19 +55,22 @@ public:
 	/* Warning! this is fake operator to avoid copying audio data to cUndo buffers */
 	cAudioTrackCollection &operator=(const cAudioTrackCollection &collection);
 
-	void AddAudioTrack(const QString fullParameterName, cParameterContainer *params);
-	void DeleteAudioTrack(const QString fullParameterName, cParameterContainer *params);
-	void DeleteAllAudioTracks(cParameterContainer *params);
-	QSharedPointer<cAudioTrack> GetAudioTrackPtr(const QString fullParameterName) const;
-	void AddParameters(cParameterContainer *params, const QString parameterName) const;
-	void RemoveParameters(cParameterContainer *params, const QString parameterName) const;
+	void AddAudioTrack(const QString fullParameterName, std::shared_ptr<cParameterContainer> params);
+	void DeleteAudioTrack(
+		const QString fullParameterName, std::shared_ptr<cParameterContainer> params);
+	void DeleteAllAudioTracks(std::shared_ptr<cParameterContainer> params);
+	std::shared_ptr<cAudioTrack> GetAudioTrackPtr(const QString fullParameterName) const;
+	void AddParameters(
+		std::shared_ptr<cParameterContainer> params, const QString parameterName) const;
+	void RemoveParameters(
+		std::shared_ptr<cParameterContainer> params, const QString parameterName) const;
 	QString FullParameterName(const QString &nameOfSoundParameter, const QString parameterName) const;
-	void LoadAllAudioFiles(cParameterContainer *params);
-	void RefreshAllAudioTracks(cParameterContainer *params);
+	void LoadAllAudioFiles(std::shared_ptr<cParameterContainer> params);
+	void RefreshAllAudioTracks(std::shared_ptr<cParameterContainer> params);
 	void SetPrefix(QString _prefix) { prefix = _prefix; }
 
 private:
-	QMap<QString, QSharedPointer<cAudioTrack>> audioTracks;
+	QMap<QString, std::shared_ptr<cAudioTrack>> audioTracks;
 	QString prefix;
 };
 

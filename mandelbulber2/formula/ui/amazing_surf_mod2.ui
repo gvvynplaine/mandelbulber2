@@ -2211,10 +2211,10 @@ offset:</string>
                  <number>6</number>
                 </property>
                 <property name="minimum">
-                 <double>-100000.000000000000000</double>
+                 <double>-99.989999999999995</double>
                 </property>
                 <property name="maximum">
-                 <double>100000.000000000000000</double>
+                 <double>99.989999999999995</double>
                 </property>
                 <property name="singleStep">
                  <double>0.100000000000000</double>
@@ -2246,10 +2246,10 @@ offset:</string>
                  <number>6</number>
                 </property>
                 <property name="minimum">
-                 <double>-100000.000000000000000</double>
+                 <double>-99.989999999999995</double>
                 </property>
                 <property name="maximum">
-                 <double>100000.000000000000000</double>
+                 <double>99.989999999999995</double>
                 </property>
                 <property name="singleStep">
                  <double>0.100000000000000</double>
@@ -2383,10 +2383,10 @@ offset:</string>
               <number>6</number>
              </property>
              <property name="minimum">
-              <double>-180.000000000000000</double>
+              <double>-36000.000000000000000</double>
              </property>
              <property name="maximum">
-              <double>180.000000000000000</double>
+              <double>36000.000000000000000</double>
              </property>
              <property name="singleStep">
               <double>1.000000000000000</double>
@@ -2411,10 +2411,10 @@ offset:</string>
               <number>6</number>
              </property>
              <property name="minimum">
-              <double>-180.000000000000000</double>
+              <double>-36000.000000000000000</double>
              </property>
              <property name="maximum">
-              <double>180.000000000000000</double>
+              <double>36000.000000000000000</double>
              </property>
              <property name="singleStep">
               <double>1.000000000000000</double>
@@ -2439,10 +2439,10 @@ offset:</string>
               <number>6</number>
              </property>
              <property name="minimum">
-              <double>-180.000000000000000</double>
+              <double>-36000.000000000000000</double>
              </property>
              <property name="maximum">
-              <double>180.000000000000000</double>
+              <double>36000.000000000000000</double>
              </property>
              <property name="singleStep">
               <double>1.000000000000000</double>
@@ -2794,7 +2794,7 @@ offset:</string>
 &lt;a href=&quot;This formula contains aux.color and aux.actualScaleA&quot;&gt;This formula contains aux.color and aux.actualScaleA&lt;br&gt;
 &lt;/td&gt;&lt;/tr&gt;
 &lt;/table&gt;
-&lt;br&gt;&lt;b&gt;Examples using this formula&lt;/b&gt;&lt;br&gt;Graeme McLaren  collection - license Creative Commons  (CC-BY 4.0)/DIFS Box DiagV3 asurf.fract&lt;br&gt;Graeme McLaren  collection - license Creative Commons  (CC-BY 4.0)/DIFS Torus asurf.fract&lt;br&gt;Graeme McLaren  collection - license Creative Commons  (CC-BY 4.0)/amazing_surf_mod2_PlatonicSolid.fract&lt;br&gt;Graeme McLaren  collection - license Creative Commons  (CC-BY 4.0)/amazing_surf_mod2_aaa1.fract&lt;br&gt;Graeme McLaren  collection - license Creative Commons  (CC-BY 4.0)/asurf_fakelights_backgroundl.fract&lt;br&gt;...&lt;h3&gt;Code&lt;/h3&gt;</string>
+&lt;br&gt;&lt;b&gt;Examples using this formula&lt;/b&gt;&lt;br&gt;Graeme McLaren  collection - license Creative Commons  (CC-BY 4.0)/DIFS Box DiagV3 asurf.fract&lt;br&gt;Graeme McLaren  collection - license Creative Commons  (CC-BY 4.0)/DIFS Torus asurf.fract&lt;br&gt;Graeme McLaren  collection - license Creative Commons  (CC-BY 4.0)/amazing_surf_mod2_PlatonicSolid.fract&lt;br&gt;Graeme McLaren  collection - license Creative Commons  (CC-BY 4.0)/amazing_surf_mod2_aaa1.fract&lt;br&gt;Graeme McLaren  collection - license Creative Commons  (CC-BY 4.0)/amazing_surf_mod2_mandelbulb.fract&lt;br&gt;...&lt;h3&gt;Code&lt;/h3&gt;</string>
         </property>
         <property name="wordWrap">
          <bool>true</bool>

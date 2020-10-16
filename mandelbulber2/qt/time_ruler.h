@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -36,6 +36,8 @@
 #ifndef MANDELBULBER2_QT_TIME_RULER_H_
 #define MANDELBULBER2_QT_TIME_RULER_H_
 
+#include <memory>
+
 #include <QWidget>
 
 // forward declarations
@@ -49,7 +51,7 @@ public:
 	cTimeRuler(QWidget *parent);
 	~cTimeRuler() override;
 
-	void SetParameters(QSharedPointer<cAudioTrack> audioTrack, int _framesPerKeyframe);
+	void SetParameters(std::shared_ptr<cAudioTrack> audioTrack, int _framesPerKeyframe);
 
 private:
 	void paintEvent(QPaintEvent *event) override;

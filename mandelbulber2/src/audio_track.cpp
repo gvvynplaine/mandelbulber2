@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -46,7 +46,7 @@
 #include "audio_fft_data.h"
 #include "files.h"
 #include "netrender.hpp"
-#include "system.hpp"
+#include "write_log.hpp"
 
 // custom includes
 #ifdef USE_SNDFILE
@@ -76,7 +76,7 @@ void cAudioTrack::Clear()
 	maxFft = 0.0;
 	rawAudio.clear();
 
-	fftAudio.reset();
+	fftAudio.clear();
 
 	animation.clear();
 	maxFftArray = cAudioFFTData();
@@ -128,8 +128,8 @@ void cAudioTrack::LoadAudio(const QString &_filename)
 			rawAudio.reserve(quint64(sfInfo.frames));
 			rawAudio.resize(quint64(sfInfo.frames));
 
-			float *tempBuff = new float[sfInfo.frames * sfInfo.channels];
-			const sf_count_t readSamples = sf_readf_float(infile, tempBuff, sfInfo.frames);
+			std::vector<float> tempBuff(sfInfo.frames * sfInfo.channels);
+			const sf_count_t readSamples = sf_readf_float(infile, tempBuff.data(), sfInfo.frames);
 
 			for (int64_t i = 0; i < readSamples; i++)
 			{
@@ -144,8 +144,6 @@ void cAudioTrack::LoadAudio(const QString &_filename)
 			}
 
 			length = readSamples;
-
-			delete[] tempBuff;
 		}
 
 		sf_close(infile);
@@ -172,9 +170,9 @@ void cAudioTrack::LoadAudio(const QString &_filename)
 		decoder->setAudioFormat(desiredFormat);
 		decoder->setSourceFilename(filename);
 
-		connect(decoder.data(), SIGNAL(bufferReady()), this, SLOT(slotReadBuffer()));
-		connect(decoder.data(), SIGNAL(finished()), this, SLOT(slotFinished()));
-		connect(decoder.data(), SIGNAL(error(QAudioDecoder::Error)), this,
+		connect(decoder.get(), SIGNAL(bufferReady()), this, SLOT(slotReadBuffer()));
+		connect(decoder.get(), SIGNAL(finished()), this, SLOT(slotFinished()));
+		connect(decoder.get(), SIGNAL(error(QAudioDecoder::Error)), this,
 			SLOT(slotError(QAudioDecoder::Error)));
 
 		loadingInProgress = true;
@@ -279,7 +277,7 @@ void cAudioTrack::calculateFFT()
 		emit loadingProgress(tr("Calculating FFT"));
 		QApplication::processEvents();
 
-		fftAudio.reset(new cAudioFFTData[numberOfFrames]);
+		fftAudio.resize(numberOfFrames);
 
 		const int overSample = int(sampleRate / framesPerSecond / cAudioFFTData::fftSize + 2);
 

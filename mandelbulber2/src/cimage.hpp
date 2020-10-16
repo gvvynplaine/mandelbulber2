@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -38,8 +38,12 @@
 //#include <QtGui/QWidget>
 #include <atomic>
 #include <cassert>
+#include <memory>
 
+#include <QDebug>
+#include <QMap>
 #include <QMutex>
+#include <QString>
 #include <QWidget>
 
 #include "color_structures.hpp"
@@ -255,19 +259,19 @@ public:
 		alphaBuffer16[imgIndex] = quint16(alphaBuffer16[imgIndex] * factorN + other * factor);
 	}
 
-	sRGBFloat *GetImageFloatPtr() { return imageFloat.data(); }
-	sRGBFloat *GetPostImageFloatPtr() { return postImageFloat.data(); }
-	sRGB16 *GetImage16Ptr() { return image16.data(); }
-	sRGB8 *GetImage8Ptr() { return image8.data(); }
-	quint16 *GetAlphaBufPtr() { return alphaBuffer16.data(); }
-	quint8 *GetAlphaBufPtr8() { return alphaBuffer8.data(); }
-	float *GetZBufferPtr() { return zBuffer.data(); }
-	sRGB8 *GetColorPtr() { return colourBuffer.data(); }
-	quint16 *GetOpacityPtr() { return opacityBuffer.data(); }
+	std::vector<sRGBFloat> &GetImageFloat() { return imageFloat; }
+	std::vector<sRGBFloat> &GetPostImageFloat() { return postImageFloat; }
+	std::vector<sRGB16> &GetImage16() { return image16; }
+	std::vector<sRGB8> &GetImage8() { return image8; }
+	std::vector<quint16> &GetAlphaBuf() { return alphaBuffer16; }
+	std::vector<quint8> &GetAlphaBuf8() { return alphaBuffer8; }
+	std::vector<float> &GetZBuffer() { return zBuffer; }
+	std::vector<sRGB8> &GetColor() { return colourBuffer; }
+	std::vector<quint16> &GetOpacity() { return opacityBuffer; }
 	size_t GetZBufferSize() const { return sizeof(float) * quint64(height) * quint64(width); }
 	QWidget *GetImageWidget() { return imageWidget; }
-	sRGB8 *GetPreviewPtr() { return preview2.data(); }
-	sRGB8 *GetPreviewPrimaryPtr() { return preview.data(); }
+	std::vector<sRGB8> &GetPreview() { return preview2; }
+	std::vector<sRGB8> &GetPreviewPrimary() { return preview; }
 
 	void CompileImage(QList<int> *list = nullptr);
 	void CompileImage(const QList<QRect> *list);
@@ -286,11 +290,11 @@ public:
 	void SetImageOptional(sImageOptional optInput) { opt = optInput; }
 	sImageOptional *GetImageOptional() { return &opt; }
 
-	quint8 *ConvertGenericRGBTo8bit(std::vector<sRGBFloat> &from, std::vector<sRGB8> &to);
-	quint8 *ConvertGenericRGBTo16bit(std::vector<sRGBFloat> &from, std::vector<sRGB16> &to);
-	quint8 *ConvertTo8bit();
-	quint8 *ConvertTo8bit(const QList<QRect> *list);
-	quint8 *ConvertAlphaTo8bit();
+	quint8 *ConvertGenericRGBTo8bitChar(std::vector<sRGBFloat> &from, std::vector<sRGB8> &to);
+	quint8 *ConvertGenericRGBTo16bitWord(std::vector<sRGBFloat> &from, std::vector<sRGB16> &to);
+	quint8 *ConvertTo8bitChar();
+	quint8 *ConvertTo8bitCharFromList(const QList<QRect> *list);
+	std::vector<quint8> &ConvertAlphaTo8bit();
 
 	quint8 *CreatePreview(double scale, int visibleWidth, int visibleHeight, QWidget *widget);
 	void UpdatePreview(QList<int> *list = nullptr);
@@ -316,10 +320,11 @@ public:
 	{
 		isStereoLeftRight = isStereoLeftRightInput;
 	}
-	void GetStereoLeftRightImages(cImage *left, cImage *right);
+	void GetStereoLeftRightImages(std::shared_ptr<cImage> left, std::shared_ptr<cImage> right);
 	void setMeta(QMap<QString, QString> meta) { this->meta = meta; }
 	QMap<QString, QString> &getMeta() { return meta; }
 	int progressiveFactor;
+	double VisualCompare(std::shared_ptr<cImage> refImage, bool checkIfBlank);
 
 private:
 	bool isAllocated;

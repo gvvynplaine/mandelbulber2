@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -143,29 +143,21 @@ formulaOut Fractal(__constant sClInConstants *consts, float3 point, sClCalcParam
 
 	// formula init
 	sExtendedAuxCl aux;
-	// TODO copy aux
 
 	aux.c = c;
 	aux.const_c = c;
 	aux.old_z = z;
-	// aux.sum_z = z;
 	aux.pos_neg = 1.0f;
-	aux.cw = 0.0f;
-
 	aux.r = length(z);
 	aux.DE = 1.0f;
 	aux.DE0 = 0.0;
 	aux.dist = 1000.0f;
 	aux.pseudoKleinianDE = 1.0f;
-
 	aux.actualScale = consts->fractal[fractalIndex].mandelbox.scale;
 	aux.actualScaleA = 0.0f;
-
 	aux.color = 1.0f;
 	aux.colorHybrid = 0.0f;
-
 	aux.temp1000 = 1000.0f;
-	aux.addDist = 0.0f;
 
 	int sequence = 0;
 	__constant sFractalCl *fractal;
@@ -466,8 +458,12 @@ formulaOut Fractal(__constant sClInConstants *consts, float3 point, sClCalcParam
 		z.y = min(z.y, consts->fractal[0].transformCommon.foldingValue - z.y);
 	dist = min(z.y, consts->fractal[0].analyticDE.tweak005)
 				 / max(fabs(aux.DE), consts->fractal[0].analyticDE.offset1);
-#elif ANALYTIC_DIFS_DE
+#elif ANALYTIC_CUSTOM_DE
 	dist = aux.dist;
+#elif ANALYTIC_MAXAXIS_DE
+	float4 absZ = fabs(z);
+	float rd = max(absZ.x, max(absZ.y, absZ.z));
+	dist = rd / aux.DE;
 #else
 	dist = length(z);
 #endif
@@ -505,9 +501,16 @@ formulaOut Fractal(__constant sClInConstants *consts, float3 point, sClCalcParam
 				dist = min(z.y, fractal->analyticDE.tweak005) / max(aux.DE, fractal->analyticDE.offset1);
 				break;
 			}
-			case clAnalyticFunctionDIFS:
+			case clAnalyticFunctionCustomDE:
 			{
 				dist = aux.dist;
+				break;
+			}
+			case clAnalyticFunctionMaxAxis:
+			{
+				float4 absZ = fabs(z);
+				float rd = max(absZ.x, max(absZ.y, absZ.z));
+				dist = rd / aux.DE;
 				break;
 			}
 			case clAnalyticFunctionNone: dist = -1.0; break;

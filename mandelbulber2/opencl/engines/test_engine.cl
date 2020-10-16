@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017 Mandelbulber Team        §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -181,7 +181,7 @@ kernel void fractal3D(__global sClPixel *out, __global sClInBuff *inBuff,
 
 	sClPixel pixel;
 
-	float glow = count / 100.0 * consts->params.DEFactor;
+	float glow = count / 100.0f * consts->params.DEFactor;
 
 	pixel.R = colour.s0 + glow;
 	pixel.G = colour.s1 * glow * 10.0f;

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -64,10 +64,9 @@ int cOpenClAbstractDynamicData::PutDummyToAlign(
 	int missingBytes = alignmentSize - dataLength % alignmentSize;
 	if (missingBytes > 0 && missingBytes != alignmentSize)
 	{
-		char *dummyData = new char[missingBytes];
-		memset(dummyData, 0, missingBytes);
-		array->append(dummyData, missingBytes);
-		delete[] dummyData;
+		std::vector<char> dummyData(missingBytes);
+		std::fill(dummyData.begin(), dummyData.end(), 0);
+		array->append(dummyData.data(), missingBytes);
 		return missingBytes;
 	}
 	else

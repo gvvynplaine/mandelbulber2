@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -36,6 +36,7 @@
 #include "opencl_engine_render_fractal.h"
 
 #include <functional>
+#include <memory>
 
 #include <QtAlgorithms>
 
@@ -44,8 +45,6 @@
 #include "common_math.h"
 #include "files.h"
 #include "fractal.h"
-#include "fractal_formulas.hpp"
-#include "fractal_list.hpp"
 #include "fractparams.hpp"
 #include "global_data.hpp"
 #include "material.h"
@@ -58,11 +57,19 @@
 #include "opencl_worker_output_queue.h"
 #include "opencl_worker_thread.h"
 #include "parameters.hpp"
+#include "perlin_noise_octaves.h"
 #include "progress_text.hpp"
 #include "rectangle.hpp"
 #include "render_data.hpp"
 #include "render_worker.hpp"
+#include "system_data.hpp"
+#include "system_directories.hpp"
 #include "texture.hpp"
+#include "wait.hpp"
+#include "write_log.hpp"
+
+#include "formula/definition/all_fractal_list.hpp"
+#include "formula/definition/legacy_fractal_transforms.hpp"
 
 // custom includes
 #ifdef USE_OPENCL
@@ -81,8 +88,15 @@ cOpenClEngineRenderFractal::cOpenClEngineRenderFractal(cOpenClHardware *_hardwar
 
 	renderEngineMode = clRenderEngineTypeNone;
 	meshExportMode = false;
+	distanceMode = false;
 	reservedGpuTime = 0.0;
 
+	// create empty list of custom formulas
+	customFormulaCodes.reserve(NUMBER_OF_FRACTALS);
+	for (int i = 0; i < NUMBER_OF_FRACTALS; i++)
+	{
+		customFormulaCodes.append(QString());
+	}
 #endif
 }
 
@@ -104,13 +118,16 @@ void cOpenClEngineRenderFractal::ReleaseMemory()
 	inCLBuffer.clear();
 	inCLTextureBuffer.clear();
 	backgroundImage2D.clear();
-	backgroungImageBuffer.reset();
+	backgroundImageBuffer.clear();
 	dynamicData.reset();
 	texturesData.reset();
 	inBuffer.clear();
 	inTextureBuffer.clear();
+	perlinNoiseSeeds.clear();
+	inCLPerlinNoiseSeedsBuffer.clear();
 
 	cOpenClEngine::ReleaseMemory();
+	distanceMode = false;
 }
 
 // name of main kernel function used by build function
@@ -141,7 +158,7 @@ void cOpenClEngineRenderFractal::CreateListOfHeaderFiles(QStringList &clHeaderFi
 }
 
 void cOpenClEngineRenderFractal::CreateListOfIncludes(const QStringList &clHeaderFiles,
-	const QString &openclPathSlash, const cParameterContainer *params,
+	const QString &openclPathSlash, std::shared_ptr<const cParameterContainer> params,
 	const QString &openclEnginePath, QByteArray &programEngine)
 {
 	for (int i = 0; i < clHeaderFiles.size(); i++)
@@ -156,10 +173,19 @@ void cOpenClEngineRenderFractal::CreateListOfIncludes(const QStringList &clHeade
 	for (int i = 0; i < listOfUsedFormulas.size(); i++)
 	{
 		QString formulaName = listOfUsedFormulas.at(i);
-		if (formulaName != "")
+		if (formulaName != "" && formulaName != "none")
 		{
-			programEngine.append("\n#include \"" + systemData.sharedDir + "formula" + QDir::separator()
-													 + "opencl" + QDir::separator() + formulaName + ".cl\"\n");
+			if (formulaName.startsWith("custom"))
+			{
+				programEngine.append("\n#include \"" + systemDirectories.GetOpenCLTempFolder()
+														 + QDir::separator() + formulaName + ".cl\"\n");
+			}
+			else
+			{
+				programEngine.append("\n#include \"" + systemDirectories.sharedDir + "formula"
+														 + QDir::separator() + "opencl" + QDir::separator() + formulaName
+														 + ".cl\"\n");
+			}
 		}
 	}
 	if (renderEngineMode != clRenderEngineTypeFast)
@@ -174,7 +200,7 @@ void cOpenClEngineRenderFractal::CreateListOfIncludes(const QStringList &clHeade
 	}
 	// compute fractal
 	programEngine.append("\n#include \"" + openclEnginePath + "compute_fractal.cl\"\n");
-	if (!meshExportMode || true)
+	if (!distanceMode)
 	{
 		// texture mapping
 		programEngine.append("\n#include \"" + openclEnginePath + "texture_mapping.cl\"\n");
@@ -193,7 +219,7 @@ void cOpenClEngineRenderFractal::CreateListOfIncludes(const QStringList &clHeade
 	programEngine.append("\n#include \"" + openclEnginePath + "primitives.cl\"\n");
 	// calculate distance
 	programEngine.append("\n#include \"" + openclEnginePath + "calculate_distance.cl\"\n");
-	if (!meshExportMode || true)
+	if (!distanceMode)
 	{
 		// normal vector calculation
 		programEngine.append("\n#include \"" + openclEnginePath + "normal_vector.cl\"\n");
@@ -207,6 +233,8 @@ void cOpenClEngineRenderFractal::CreateListOfIncludes(const QStringList &clHeade
 		{
 			// shaders
 			programEngine.append("\n#include \"" + openclEnginePath + "shader_iter_opacity.cl\"\n");
+			programEngine.append("\n#include \"" + openclEnginePath + "perlin_noise.cl\"\n");
+			programEngine.append("\n#include \"" + openclEnginePath + "shader_clouds_opacity.cl\"\n");
 			programEngine.append("\n#include \"" + openclEnginePath + "shader_hsv2rgb.cl\"\n");
 			programEngine.append("\n#include \"" + openclEnginePath + "shader_background.cl\"\n");
 			programEngine.append("\n#include \"" + openclEnginePath + "shader_surface_color.cl\"\n");
@@ -253,6 +281,10 @@ void cOpenClEngineRenderFractal::LoadSourceWithMainEngine(
 	{
 		engineFileName = "slicer_engine.cl";
 	}
+	else if (distanceMode)
+	{
+		engineFileName = "distance_engine.cl";
+	}
 	else
 	{
 		switch (renderEngineMode)
@@ -265,9 +297,20 @@ void cOpenClEngineRenderFractal::LoadSourceWithMainEngine(
 	}
 	QString engineFullFileName = openclEnginePath + engineFileName;
 	programEngine.append(LoadUtf8TextFromFile(engineFullFileName));
+
+	// adding hash code for custom formulas to the end of code to force recompile
+	QCryptographicHash hashCryptProgram(QCryptographicHash::Md4);
+	for (QString code : customFormulaCodes)
+	{
+		hashCryptProgram.addData(code.toUtf8());
+	}
+	QByteArray hashCustomPrograms = hashCryptProgram.result();
+	QString hashText = QString("//%1").arg(QString(hashCustomPrograms.toHex()));
+	programEngine.append(hashText.toUtf8());
 }
 
-bool cOpenClEngineRenderFractal::LoadSourcesAndCompile(const cParameterContainer *params)
+bool cOpenClEngineRenderFractal::LoadSourcesAndCompile(
+	std::shared_ptr<const cParameterContainer> params, QString *compilerErrorOutput)
 {
 	programsLoaded = false;
 	readyForRendering = false;
@@ -277,7 +320,7 @@ bool cOpenClEngineRenderFractal::LoadSourcesAndCompile(const cParameterContainer
 	QByteArray programEngine;
 	try
 	{
-		QString openclPath = systemData.sharedDir + "opencl" + QDir::separator();
+		QString openclPath = systemDirectories.sharedDir + "opencl" + QDir::separator();
 		QString openclEnginePath = openclPath + "engines" + QDir::separator();
 
 		QStringList clHeaderFiles;
@@ -315,10 +358,11 @@ bool cOpenClEngineRenderFractal::LoadSourcesAndCompile(const cParameterContainer
 
 	// building OpenCl kernel
 	QString errorString;
+	bool quiet = (compilerErrorOutput) ? true : false;
 
 	QElapsedTimer timer;
 	timer.start();
-	if (Build(programEngine, &errorString))
+	if (Build(programEngine, &errorString, quiet))
 	{
 		programsLoaded = true;
 	}
@@ -327,8 +371,11 @@ bool cOpenClEngineRenderFractal::LoadSourcesAndCompile(const cParameterContainer
 		programsLoaded = false;
 		WriteLog(errorString, 0);
 	}
+
+	if (compilerErrorOutput) *compilerErrorOutput = errorString;
+
 	WriteLogDouble(
-		"cOpenClEngineRenderFractal: Opencl DOF build time [s]", timer.nsecsElapsed() / 1.0e9, 2);
+		"cOpenClEngineRenderFractal: Opencl kernel build time [s]", timer.nsecsElapsed() / 1.0e9, 2);
 
 	return programsLoaded;
 }
@@ -347,7 +394,8 @@ void cOpenClEngineRenderFractal::SetParametersForDistanceEstimationMethod(
 	bool useLogarithmicDEFunction = false;
 	bool usePseudoKleinianDEFunction = false;
 	bool useJosKleinianDEFunction = false;
-	bool useDIFSDEFunction = false;
+	bool useCustomDEFunction = false;
+	bool useMaxAxisDEFunction = false;
 	if (fractals->IsHybrid())
 	{
 		if (deType == fractal::analyticDEType)
@@ -363,7 +411,8 @@ void cOpenClEngineRenderFractal::SetParametersForDistanceEstimationMethod(
 				case fractal::josKleinianDEFunction:
 					definesCollector += " -DANALYTIC_JOS_KLEINIAN_DE";
 					break;
-				case fractal::dIFSDEFunction: definesCollector += " -DANALYTIC_DIFS_DE"; break;
+				case fractal::customDEFunction: definesCollector += " -DANALYTIC_CUSTOM_DE"; break;
+				case fractal::maxAxisDEFunction: definesCollector += " -DANALYTIC_MAXAXIS_DE"; break;
 				default: break;
 			}
 		}
@@ -376,7 +425,8 @@ void cOpenClEngineRenderFractal::SetParametersForDistanceEstimationMethod(
 				case fractal::logarithmicDEFunction: useLogarithmicDEFunction = true; break;
 				case fractal::pseudoKleinianDEFunction: usePseudoKleinianDEFunction = true; break;
 				case fractal::josKleinianDEFunction: useJosKleinianDEFunction = true; break;
-				case fractal::dIFSDEFunction: useDIFSDEFunction = true; break;
+				case fractal::customDEFunction: useCustomDEFunction = true; break;
+				case fractal::maxAxisDEFunction: useMaxAxisDEFunction = true; break;
 				default: break;
 			}
 		}
@@ -400,7 +450,8 @@ void cOpenClEngineRenderFractal::SetParametersForDistanceEstimationMethod(
 					case fractal::logarithmicDEFunction: useLogarithmicDEFunction = true; break;
 					case fractal::pseudoKleinianDEFunction: usePseudoKleinianDEFunction = true; break;
 					case fractal::josKleinianDEFunction: useJosKleinianDEFunction = true; break;
-					case fractal::dIFSDEFunction: useDIFSDEFunction = true; break;
+					case fractal::customDEFunction: useCustomDEFunction = true; break;
+					case fractal::maxAxisDEFunction: useMaxAxisDEFunction = true; break;
 					default: break;
 				}
 			}
@@ -418,10 +469,13 @@ void cOpenClEngineRenderFractal::SetParametersForDistanceEstimationMethod(
 
 	if (useJosKleinianDEFunction) definesCollector += " -DDELTA_JOS_KLEINIAN_DE";
 
-	if (useDIFSDEFunction) definesCollector += " -DDELTA_DIFS_DE";
+	if (useCustomDEFunction) definesCollector += " -DDELTA_DIFS_DE";
+
+	if (useMaxAxisDEFunction) definesCollector += " -DDELTA_MAXAXIS_DE";
 }
 
-void cOpenClEngineRenderFractal::CreateListOfUsedFormulas(cNineFractals *fractals)
+void cOpenClEngineRenderFractal::CreateListOfUsedFormulas(
+	cNineFractals *fractals, std::shared_ptr<const cFractalContainer> fractalContainer)
 {
 	listOfUsedFormulas.clear();
 	// creating list of used formulas
@@ -429,14 +483,42 @@ void cOpenClEngineRenderFractal::CreateListOfUsedFormulas(cNineFractals *fractal
 	{
 		fractal::enumFractalFormula fractalFormula = fractals->GetFractal(i)->formula;
 		int listIndex = cNineFractals::GetIndexOnFractalList(fractalFormula);
-		QString formulaName = fractalList.at(listIndex).internalName;
+		QString formulaName = newFractalList.at(listIndex)->getInternalName();
+		if (formulaName == "custom")
+		{
+			formulaName += QString::number(i);
+			QString formulaCode = fractalContainer->at(i)->Get<QString>("formula_code");
+
+			if (formulaCode.contains("CustomIteration("))
+			{
+				formulaCode = formulaCode.replace("CustomIteration", QString("Custom%1Iteration").arg(i));
+				QFile qFile(
+					systemDirectories.GetOpenCLTempFolder() + QDir::separator() + formulaName + ".cl");
+				if (qFile.open(QIODevice::WriteOnly))
+				{
+					qFile.write(formulaCode.toUtf8());
+					qFile.close();
+				}
+			}
+			else
+			{
+				emit showErrorMessage(
+					QObject::tr("Custom formula %1 has missing function name CustomIteration()!").arg(i),
+					cErrorMessage::errorMessage, nullptr);
+			}
+			customFormulaCodes[i] = formulaCode;
+		}
+		else
+		{
+			customFormulaCodes[i] = QString();
+		}
 		listOfUsedFormulas.append(formulaName);
 	}
 	// adding #defines to the list
 	for (int i = 0; i < listOfUsedFormulas.size(); i++)
 	{
 		QString internalID = toCamelCase(listOfUsedFormulas.at(i));
-		if (internalID != "")
+		if (internalID != "" && internalID != "None")
 		{
 			QString functionName = internalID.left(1).toUpper() + internalID.mid(1) + "Iteration";
 			definesCollector += " -DFORMULA_ITER_" + QString::number(i) + "=" + functionName;
@@ -525,6 +607,13 @@ void cOpenClEngineRenderFractal::SetParametersForShaders(
 			default: definesCollector += " -DFAKE_LIGHTS_POINT"; break;
 		}
 	}
+
+	if (paramRender->cloudsEnable)
+	{
+		definesCollector += " -DCLOUDS";
+		anyVolumetricShaderUsed = true;
+	}
+
 	if (!anyVolumetricShaderUsed) definesCollector += " -DSIMPLE_GLOW";
 
 	if (paramRender->DOFMonteCarlo)
@@ -697,16 +786,16 @@ void cOpenClEngineRenderFractal::SetParametersAndDataForMaterials(
 }
 
 void cOpenClEngineRenderFractal::DynamicDataForAOVectors(
-	sParamRender *paramRender, cNineFractals *fractals, sRenderData *renderData)
+	std::shared_ptr<const sParamRender> paramRender, std::shared_ptr<const cNineFractals> fractals,
+	std::shared_ptr<sRenderData> renderData)
 {
 	// AO colored vectors
-	cRenderWorker *tempRenderWorker =
-		new cRenderWorker(paramRender, fractals, nullptr, renderData, nullptr);
+	std::unique_ptr<cRenderWorker> tempRenderWorker(
+		new cRenderWorker(paramRender, fractals, nullptr, renderData, nullptr));
 	tempRenderWorker->PrepareAOVectors();
-	sVectorsAround *AOVectors = tempRenderWorker->getAOVectorsAround();
+	const sVectorsAround *AOVectors = tempRenderWorker->getAOVectorsAround();
 	int numberOfVectors = tempRenderWorker->getAoVectorsCount();
 	dynamicData->BuildAOVectorsData(AOVectors, numberOfVectors);
-	delete tempRenderWorker;
 }
 
 void cOpenClEngineRenderFractal::SetParametersForIterationWeight(cNineFractals *fractals)
@@ -722,9 +811,11 @@ void cOpenClEngineRenderFractal::SetParametersForIterationWeight(cNineFractals *
 	if (weightUsed) definesCollector += " -DITERATION_WEIGHT";
 }
 
-void cOpenClEngineRenderFractal::SetParameters(const cParameterContainer *paramContainer,
-	const cFractalContainer *fractalContainer, sParamRender *paramRender, cNineFractals *fractals,
-	sRenderData *renderData, bool meshExportModeEnable)
+void cOpenClEngineRenderFractal::SetParameters(
+	std::shared_ptr<const cParameterContainer> paramContainer,
+	std::shared_ptr<const cFractalContainer> fractalContainer,
+	std::shared_ptr<sParamRender> paramRender, std::shared_ptr<cNineFractals> fractals,
+	std::shared_ptr<sRenderData> renderData, bool meshExportModeEnable)
 {
 	Q_UNUSED(fractalContainer);
 
@@ -751,56 +842,64 @@ void cOpenClEngineRenderFractal::SetParameters(const cParameterContainer *paramC
 
 	if (renderEngineMode == clRenderEngineTypeFull) definesCollector += " -DFULL_ENGINE";
 	if (meshExportMode) definesCollector += " -DMESH_EXPORT";
+	if (distanceMode) definesCollector += " -DDISTANCE_CALCULATION_MODE";
 	if (paramRender->limitsEnabled) definesCollector += " -DLIMITS_ENABLED";
 	if (paramRender->advancedQuality) definesCollector += " -DADVANCED_QUALITY";
 
 	// define distance estimation method
-	SetParametersForDistanceEstimationMethod(fractals, paramRender);
+	SetParametersForDistanceEstimationMethod(fractals.get(), paramRender.get());
 
-	CreateListOfUsedFormulas(fractals);
+	CreateListOfUsedFormulas(fractals.get(), fractalContainer);
 
 	if (paramRender->common.foldings.boxEnable) definesCollector += " -DBOX_FOLDING";
 	if (paramRender->common.foldings.sphericalEnable) definesCollector += " -DSPHERICAL_FOLDING";
 	if (paramRender->interiorMode) definesCollector += " -DINTERIOR_MODE";
 	if (paramRender->booleanOperatorsEnabled) definesCollector += " -DBOOLEAN_OPERATORS";
 
-	SetParametersForIterationWeight(fractals);
+	SetParametersForIterationWeight(fractals.get());
 
 	// ---- perspective projections ------
-	SetParametersForPerspectiveProjection(paramRender);
-
-	// ------------ enabling shaders ----------
-	SetParametersForShaders(paramRender, renderData);
-
-	SetParametersForStereoscopic(renderData);
-
-	WriteLogDouble("Constant buffer size [KB]", sizeof(sClInConstants) / 1024.0, 2);
-
-	//---------- DYNAMIC DATA -------------
-	renderData->ValidateObjects();
-
-	QMap<QString, int> textureIndexes = SetParametersAndDataForTextures(renderData);
+	SetParametersForPerspectiveProjection(paramRender.get());
 
 	//----------- create dynamic data -----------
 	WriteLog(QString("Creating dynamic data for OpenCL rendering"), 2);
 	dynamicData.reset(new cOpenClDynamicData);
 	dynamicData->ReserveHeader();
 
-	// materials
-	SetParametersAndDataForMaterials(textureIndexes, renderData, paramRender);
+	// ------------ enabling shaders ----------
+	if (renderData)
+	{
+		SetParametersForShaders(paramRender.get(), renderData.get());
 
-	// AO colored vectors
-	DynamicDataForAOVectors(paramRender, fractals, renderData);
+		SetParametersForStereoscopic(renderData.get());
 
-	// random lights
-	dynamicData->BuildLightsData(&renderData->lights);
+		WriteLogDouble("Constant buffer size [KB]", sizeof(sClInConstants) / 1024.0, 2);
+
+		//---------- DYNAMIC DATA -------------
+
+		renderData->ValidateObjects();
+
+		QMap<QString, int> textureIndexes = SetParametersAndDataForTextures(renderData.get());
+
+		// materials
+		SetParametersAndDataForMaterials(textureIndexes, renderData.get(), paramRender.get());
+
+		// AO colored vectors
+		DynamicDataForAOVectors(paramRender, fractals, renderData);
+
+		// random lights
+		dynamicData->BuildLightsData(&renderData->lights);
+	}
 
 	definesCollector += dynamicData->BuildPrimitivesData(&paramRender->primitives);
 	if (paramRender->primitives.GetListOfPrimitives()->size() > 0)
 		definesCollector += " -DUSE_PRIMITIVES";
 
-	dynamicData->BuildObjectsData(&renderData->objectData);
-	// definesCollector += " -DOBJ_ARRAY_SIZE=" + QString::number(renderData->objectData.size());
+	if (renderData)
+	{
+		dynamicData->BuildObjectsData(&renderData->objectData);
+		// definesCollector += " -DOBJ_ARRAY_SIZE=" + QString::number(renderData->objectData.size());
+	}
 
 	dynamicData->FillHeader();
 
@@ -824,24 +923,25 @@ void cOpenClEngineRenderFractal::SetParameters(const cParameterContainer *paramC
 		constantInBuffer->fractal[i] = clCopySFractalCl(*fractals->GetFractal(i));
 	}
 
+	// buffer for Perlin noise seeds
+	perlinNoiseSeeds.resize(perlinNoiseArraySize);
+	std::unique_ptr<cPerlinNoiseOctaves> perlinNoise(
+		new cPerlinNoiseOctaves(paramRender->cloudsRandomSeed));
+	std::uint8_t *seeds = perlinNoise->GetSeeds();
+	for (int i = 0; i < perlinNoiseArraySize; i++)
+	{
+		perlinNoiseSeeds[i] = seeds[i];
+	}
+
 	fractals->CopyToOpenclData(&constantInBuffer->sequence);
 }
 
-void cOpenClEngineRenderFractal::RegisterInputOutputBuffers(const cParameterContainer *params)
+void cOpenClEngineRenderFractal::RegisterInputOutputBuffers(
+	std::shared_ptr<const cParameterContainer> params)
 {
 	Q_UNUSED(params);
 
-	if (!meshExportMode)
-	{
-		outputBuffers.clear();
-		for (int d = 0; d < hardware->getEnabledDevices().size(); d++)
-		{
-			outputBuffers.append(listOfBuffers());
-			outputBuffers[d] << sClInputOutputBuffer(
-				sizeof(sClPixel), optimalJob.stepSize, "output-buffer");
-		}
-	}
-	else
+	if (meshExportMode)
 	{
 		// buffer for distances
 		outputBuffers[0] << sClInputOutputBuffer(sizeof(float),
@@ -852,10 +952,31 @@ void cOpenClEngineRenderFractal::RegisterInputOutputBuffers(const cParameterCont
 		outputBuffers[0] << sClInputOutputBuffer(sizeof(float),
 			constantInMeshExportBuffer->sliceHeight * constantInMeshExportBuffer->sliceWidth,
 			"mesh-colors-buffer");
+
+		// buffer for colors
+		outputBuffers[0] << sClInputOutputBuffer(sizeof(int),
+			constantInMeshExportBuffer->sliceHeight * constantInMeshExportBuffer->sliceWidth,
+			"mesh-iterations-buffer");
+	}
+	else if (distanceMode)
+	{
+		// buffer for distances
+		outputBuffers[0] << sClInputOutputBuffer(sizeof(cl_float), 1, "distance-buffer");
+	}
+	else
+	{
+		outputBuffers.clear();
+		for (int d = 0; d < hardware->getEnabledDevices().size(); d++)
+		{
+			outputBuffers.append(listOfBuffers());
+			outputBuffers[d] << sClInputOutputBuffer(
+				sizeof(sClPixel), optimalJob.stepSize, "output-buffer");
+		}
 	}
 }
 
-bool cOpenClEngineRenderFractal::PreAllocateBuffers(const cParameterContainer *params)
+bool cOpenClEngineRenderFractal::PreAllocateBuffers(
+	std::shared_ptr<const cParameterContainer> params)
 {
 	cOpenClEngine::PreAllocateBuffers(params);
 
@@ -869,9 +990,9 @@ bool cOpenClEngineRenderFractal::PreAllocateBuffers(const cParameterContainer *p
 		{
 			WriteLog(QString("Allocating OpenCL buffer for constants"), 2);
 
-			inCLConstBuffer.append(QSharedPointer<cl::Buffer>(
+			inCLConstBuffer.append(std::shared_ptr<cl::Buffer>(
 				new cl::Buffer(*hardware->getContext(d), CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-					sizeof(sClInConstants), constantInBuffer.data(), &err)));
+					sizeof(sClInConstants), constantInBuffer.get(), &err)));
 			if (!checkErr(err,
 						"cl::Buffer(*hardware->getContext(), CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, "
 						"sizeof(sClInConstants), constantInBuffer, &err)"))
@@ -886,9 +1007,9 @@ bool cOpenClEngineRenderFractal::PreAllocateBuffers(const cParameterContainer *p
 			{
 				WriteLog(QString("Allocating OpenCL buffer for mesh constants"), 2);
 
-				inCLConstMeshExportBuffer.append(QSharedPointer<cl::Buffer>(
+				inCLConstMeshExportBuffer.append(std::shared_ptr<cl::Buffer>(
 					new cl::Buffer(*hardware->getContext(d), CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-						sizeof(sClMeshExport), constantInMeshExportBuffer.data(), &err)));
+						sizeof(sClMeshExport), constantInMeshExportBuffer.get(), &err)));
 				if (!checkErr(err,
 							"cl::Buffer(*hardware->getContext(), CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, "
 							"sizeof(inCLConstMeshExportBuffer), constantInBuffer, &err)"))
@@ -903,7 +1024,7 @@ bool cOpenClEngineRenderFractal::PreAllocateBuffers(const cParameterContainer *p
 			// this buffer will be used for color palettes, lights, etc...
 			WriteLog(QString("Allocating OpenCL buffer for dynamic data"), 2);
 
-			inCLBuffer.append(QSharedPointer<cl::Buffer>(new cl::Buffer(*hardware->getContext(d),
+			inCLBuffer.append(std::shared_ptr<cl::Buffer>(new cl::Buffer(*hardware->getContext(d),
 				CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, size_t(inBuffer.size()), inBuffer.data(), &err)));
 			if (!checkErr(err,
 						"Buffer::Buffer(*hardware->getContext(), CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR, "
@@ -915,12 +1036,12 @@ bool cOpenClEngineRenderFractal::PreAllocateBuffers(const cParameterContainer *p
 				return false;
 			}
 
-			if (renderEngineMode == clRenderEngineTypeFull)
+			if (renderEngineMode == clRenderEngineTypeFull && !distanceMode)
 			{
 				WriteLog(QString("Allocating OpenCL buffer for texture data"), 2);
 
 				// this buffer will be used for textures
-				inCLTextureBuffer.append(QSharedPointer<cl::Buffer>(
+				inCLTextureBuffer.append(std::shared_ptr<cl::Buffer>(
 					new cl::Buffer(*hardware->getContext(d), CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
 						size_t(inTextureBuffer.size()), inTextureBuffer.data(), &err)));
 				if (!checkErr(err,
@@ -929,6 +1050,25 @@ bool cOpenClEngineRenderFractal::PreAllocateBuffers(const cParameterContainer *p
 				{
 					emit showErrorMessage(
 						QObject::tr("OpenCL %1 cannot be created!").arg(QObject::tr("buffer for texture data")),
+						cErrorMessage::errorMessage, nullptr);
+					return false;
+				}
+			}
+
+			if (renderEngineMode != clRenderEngineTypeFast && !meshExportMode && !distanceMode)
+			{
+				// this buffer will be used for Perlin noise seeds.
+				WriteLog(QString("Allocating OpenCL buffer for perlin noise seeds"), 2);
+
+				inCLPerlinNoiseSeedsBuffer.append(std::shared_ptr<cl::Buffer>(
+					new cl::Buffer(*hardware->getContext(d), CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+						size_t(perlinNoiseSeeds.size() * sizeof(cl_uchar)), perlinNoiseSeeds.data(), &err)));
+				if (!checkErr(err,
+							"Buffer::Buffer(*hardware->getContext(), CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR, "
+							"sizeof(perlinNoiseSeeds), perlinNoiseSeeds, &err)"))
+				{
+					emit showErrorMessage(QObject::tr("OpenCL %1 cannot be created!")
+																	.arg(QObject::tr("buffer for perlin noise seeds")),
 						cErrorMessage::errorMessage, nullptr);
 					return false;
 				}
@@ -945,18 +1085,18 @@ bool cOpenClEngineRenderFractal::PreAllocateBuffers(const cParameterContainer *p
 }
 
 void cOpenClEngineRenderFractal::CreateThreadsForOpenCLWorkers(int numberOfOpenCLWorkers,
-	const QSharedPointer<cOpenClScheduler> &scheduler, quint64 width, quint64 height,
-	const QSharedPointer<cOpenCLWorkerOutputQueue> &outputQueue, int numberOfSamples,
-	int antiAliasingDepth, QList<QSharedPointer<QThread>> &threads,
-	QList<QSharedPointer<cOpenClWorkerThread>> &workers, bool *stopRequest)
+	const std::shared_ptr<cOpenClScheduler> &scheduler, quint64 width, quint64 height,
+	const std::shared_ptr<cOpenCLWorkerOutputQueue> &outputQueue, int numberOfSamples,
+	int antiAliasingDepth, QList<std::shared_ptr<QThread>> &threads,
+	QList<std::shared_ptr<cOpenClWorkerThread>> &workers, bool *stopRequest)
 {
 	for (int d = 0; d < numberOfOpenCLWorkers; d++)
 	{
 		// allocating memory for threads and workers
 		WriteLog(QString("Thread for OpenCL worker") + QString::number(d) + " create", 3);
-		threads.append(QSharedPointer<QThread>(new QThread));
+		threads.append(std::shared_ptr<QThread>(new QThread));
 		workers.append(
-			QSharedPointer<cOpenClWorkerThread>(new cOpenClWorkerThread(this, scheduler, d)));
+			std::shared_ptr<cOpenClWorkerThread>(new cOpenClWorkerThread(this, scheduler, d)));
 		// pushing data to workers
 		workers[d]->setImageWidth(width);
 		workers[d]->setImageHeight(height);
@@ -973,16 +1113,16 @@ void cOpenClEngineRenderFractal::CreateThreadsForOpenCLWorkers(int numberOfOpenC
 		workers[d]->setReservedGpuTime(reservedGpuTime);
 		workers[d]->setFullEngineFlag(renderEngineMode == clRenderEngineTypeFull);
 		// stating threads
-		workers[d]->moveToThread(threads[d].data());
+		workers[d]->moveToThread(threads[d].get());
 		QObject::connect(
-			threads[d].data(), SIGNAL(started()), workers[d].data(), SLOT(ProcessRenderingLoop()));
-		QObject::connect(workers[d].data(), SIGNAL(finished()), threads[d].data(), SLOT(quit()));
-		connect(workers[d].data(),
+			threads[d].get(), SIGNAL(started()), workers[d].get(), SLOT(ProcessRenderingLoop()));
+		QObject::connect(workers[d].get(), SIGNAL(finished()), threads[d].get(), SLOT(quit()));
+		connect(workers[d].get(),
 			SIGNAL(showErrorMessage(QString, cErrorMessage::enumMessageType, QWidget *)), gErrorMessage,
 			SLOT(slotShowMessage(QString, cErrorMessage::enumMessageType, QWidget *)));
 		threads[d]->setObjectName("OpenCLWorker #" + QString::number(d));
 		threads[d]->start();
-		threads[d]->setPriority(GetQThreadPriority(systemData.threadsPriority));
+		threads[d]->setPriority(systemData.GetQThreadPriority(systemData.threadsPriority));
 		WriteLog(QString("Thread ") + QString::number(d) + " started", 3);
 	}
 }
@@ -1010,7 +1150,7 @@ sRGBFloat cOpenClEngineRenderFractal::MCMixColor(
 
 void cOpenClEngineRenderFractal::PutMultiPixel(quint64 xx, quint64 yy, const sRGBFloat &newPixel,
 	const sClPixel &pixelCl, unsigned short newAlpha, sRGB8 color, unsigned short opacity,
-	cImage *image)
+	std::shared_ptr<cImage> &image)
 {
 	image->PutPixelImage(xx, yy, newPixel);
 	image->PutPixelZBuffer(xx, yy, pixelCl.zBuffer);
@@ -1022,7 +1162,7 @@ void cOpenClEngineRenderFractal::PutMultiPixel(quint64 xx, quint64 yy, const sRG
 }
 
 int cOpenClEngineRenderFractal::PeriodicRefreshOfTiles(int lastRefreshTime,
-	QElapsedTimer &timerImageRefresh, cImage *image, QList<QRect> &lastRenderedRects,
+	QElapsedTimer &timerImageRefresh, std::shared_ptr<cImage> image, QList<QRect> &lastRenderedRects,
 	QList<sRenderedTileData> &listOfRenderedTilesData)
 {
 	timerImageRefresh.restart();
@@ -1030,7 +1170,7 @@ int cOpenClEngineRenderFractal::PeriodicRefreshOfTiles(int lastRefreshTime,
 	image->CompileImage(&lastRenderedRects);
 	if (image->IsPreview())
 	{
-		image->ConvertTo8bit(&lastRenderedRects);
+		image->ConvertTo8bitCharFromList(&lastRenderedRects);
 		image->UpdatePreview(&lastRenderedRects);
 		sendRenderedTilesList(listOfRenderedTilesData);
 		updateImage();
@@ -1042,7 +1182,8 @@ int cOpenClEngineRenderFractal::PeriodicRefreshOfTiles(int lastRefreshTime,
 	return lastRefreshTime;
 }
 
-void cOpenClEngineRenderFractal::FinallRefreshOfImage(QList<QRect> lastRenderedRects, cImage *image)
+void cOpenClEngineRenderFractal::FinallRefreshOfImage(
+	QList<QRect> lastRenderedRects, std::shared_ptr<cImage> image)
 {
 	QElapsedTimer timerImageRefresh;
 	timerImageRefresh.start();
@@ -1050,7 +1191,7 @@ void cOpenClEngineRenderFractal::FinallRefreshOfImage(QList<QRect> lastRenderedR
 	image->CompileImage(&lastRenderedRects);
 	if (image->IsPreview())
 	{
-		image->ConvertTo8bit(&lastRenderedRects);
+		image->ConvertTo8bitCharFromList(&lastRenderedRects);
 		image->UpdatePreview(&lastRenderedRects);
 		updateImage();
 	}
@@ -1059,7 +1200,7 @@ void cOpenClEngineRenderFractal::FinallRefreshOfImage(QList<QRect> lastRenderedR
 
 // Multi-threaded version of OpenCL render function
 bool cOpenClEngineRenderFractal::RenderMulti(
-	cImage *image, bool *stopRequest, sRenderData *renderData)
+	std::shared_ptr<cImage> image, bool *stopRequest, sRenderData *renderData)
 {
 	WriteLog(QString("Starting RenderMulti()"), 2);
 
@@ -1099,7 +1240,7 @@ bool cOpenClEngineRenderFractal::RenderMulti(
 
 		// preparation of table for noise statistics used in MC method
 		const quint64 noiseTableSize = (gridWidth + 1) * (gridHeight + 1);
-		float *noiseTable = new float[noiseTableSize];
+		std::vector<float> noiseTable(noiseTableSize);
 		for (quint64 i = 0; i < noiseTableSize; i++)
 		{
 			noiseTable[i] = 0.0;
@@ -1165,14 +1306,14 @@ bool cOpenClEngineRenderFractal::RenderMulti(
 		int numberOfOpenCLWorkers = hardware->getEnabledDevices().size();
 
 		// prepare list of threads
-		QList<QSharedPointer<QThread>> threads;
+		QList<std::shared_ptr<QThread>> threads;
 		// prepare list of workers
-		QList<QSharedPointer<cOpenClWorkerThread>> workers;
+		QList<std::shared_ptr<cOpenClWorkerThread>> workers;
 
 		// create scheduler
-		QSharedPointer<cOpenClScheduler> scheduler(new cOpenClScheduler(&tileSequence));
+		std::shared_ptr<cOpenClScheduler> scheduler(new cOpenClScheduler(&tileSequence));
 		// create output FIFO buffer
-		QSharedPointer<cOpenCLWorkerOutputQueue> outputQueue(new cOpenCLWorkerOutputQueue);
+		std::shared_ptr<cOpenCLWorkerOutputQueue> outputQueue(new cOpenCLWorkerOutputQueue);
 
 		// initializing and starting of all workers
 
@@ -1399,8 +1540,6 @@ bool cOpenClEngineRenderFractal::RenderMulti(
 			FinallRefreshOfImage(lastRenderedRects, image);
 		}
 
-		delete[] noiseTable;
-
 		emit updateProgressAndStatus(
 			tr("OpenCL - rendering image finished"), progressText.getText(1.0), 1.0);
 	}
@@ -1483,11 +1622,10 @@ bool cOpenClEngineRenderFractal::AssignParametersToKernelAdditional(
 		return false;
 	}
 
-	if (!meshExportMode && renderEngineMode == clRenderEngineTypeFull)
+	if (!meshExportMode && !distanceMode && renderEngineMode == clRenderEngineTypeFull)
 	{
-		int err =
-			clKernels.at(deviceIndex)
-				->setArg(argIterator++, *inCLTextureBuffer[deviceIndex]); // input data in global memory
+		err = clKernels.at(deviceIndex)
+						->setArg(argIterator++, *inCLTextureBuffer[deviceIndex]); // input data in global memory
 		if (!checkErr(err, "kernel->setArg(1, *inCLTextureBuffer)"))
 		{
 			emit showErrorMessage(
@@ -1523,7 +1661,7 @@ bool cOpenClEngineRenderFractal::AssignParametersToKernelAdditional(
 		}
 	}
 
-	if (renderEngineMode != clRenderEngineTypeFast && !meshExportMode)
+	if (renderEngineMode != clRenderEngineTypeFast && !meshExportMode && !distanceMode)
 	{
 		err =
 			clKernels.at(deviceIndex)
@@ -1538,13 +1676,39 @@ bool cOpenClEngineRenderFractal::AssignParametersToKernelAdditional(
 		}
 	}
 
-	if (!meshExportMode)
+	if (renderEngineMode != clRenderEngineTypeFast && !meshExportMode && !distanceMode)
+	{
+		err = clKernels.at(deviceIndex)
+						->setArg(argIterator++,
+							*inCLPerlinNoiseSeedsBuffer[deviceIndex]); // input data for perlin noise seeds
+		if (!checkErr(err, "kernel->setArg(4, *inCLPerlinNoiseSeedsBuffer)"))
+		{
+			emit showErrorMessage(
+				QObject::tr("Cannot set OpenCL argument for %1").arg(QObject::tr("perlin noise seeds")),
+				cErrorMessage::errorMessage, nullptr);
+			return false;
+		}
+	}
+
+	if (!meshExportMode && !distanceMode)
 	{
 		err = clKernels.at(deviceIndex)->setArg(argIterator++, Random(1000000)); // random seed
-		if (!checkErr(err, "kernel->setArg(4, *inCLConstBuffer)"))
+		if (!checkErr(err, "kernel->setArg(4, initRandomSeed)"))
 		{
 			emit showErrorMessage(
 				QObject::tr("Cannot set OpenCL argument for %1").arg(QObject::tr("random seed")),
+				cErrorMessage::errorMessage, nullptr);
+			return false;
+		}
+	}
+
+	if (distanceMode)
+	{
+		err = clKernels.at(deviceIndex)->setArg(argIterator++, pointToCalculateDistance); // random seed
+		if (!checkErr(err, "kernel->setArg(4, pointToCalculateDistance)"))
+		{
+			emit showErrorMessage(QObject::tr("Cannot set OpenCL argument for %1")
+															.arg(QObject::tr("pointToCalculateDistance")),
 				cErrorMessage::errorMessage, nullptr);
 			return false;
 		}
@@ -1580,7 +1744,7 @@ bool cOpenClEngineRenderFractal::WriteBuffersToQueue()
 			return false;
 		}
 
-		if (renderEngineMode == clRenderEngineTypeFull)
+		if (renderEngineMode == clRenderEngineTypeFull && !distanceMode)
 		{
 			WriteLog(QString("Writing OpenCL texture buffer"), 2);
 
@@ -1602,11 +1766,34 @@ bool cOpenClEngineRenderFractal::WriteBuffersToQueue()
 					cErrorMessage::errorMessage, nullptr);
 				return false;
 			}
+
+			if (!meshExportMode)
+			{
+				WriteLog(QString("Writing OpenCL perlin noise buffer"), 2);
+				err = clQueues.at(d)->enqueueWriteBuffer(*inCLPerlinNoiseSeedsBuffer[d], CL_TRUE, 0,
+					perlinNoiseSeeds.size() * sizeof(cl_uchar), perlinNoiseSeeds.data());
+				if (!checkErr(err, "CommandQueue::enqueueWriteBuffer(inCLPerlinNoiseSeedsBuffer)"))
+				{
+					emit showErrorMessage(
+						QObject::tr("Cannot enqueue writing OpenCL %1").arg(QObject::tr("perlin noise seeds")),
+						cErrorMessage::errorMessage, nullptr);
+					return false;
+				}
+
+				err = clQueues.at(d)->finish();
+				if (!checkErr(err, "CommandQueue::finish() - inCLPerlinNoiseSeedsBuffer"))
+				{
+					emit showErrorMessage(
+						QObject::tr("Cannot finish writing OpenCL %1").arg(QObject::tr("perlin noise seeds")),
+						cErrorMessage::errorMessage, nullptr);
+					return false;
+				}
+			}
 		}
 
 		WriteLog(QString("Writing OpenCL constant buffer"), 2);
 		err = clQueues.at(d)->enqueueWriteBuffer(
-			*inCLConstBuffer[d].data(), CL_TRUE, 0, sizeof(sClInConstants), constantInBuffer.data());
+			*inCLConstBuffer[d].get(), CL_TRUE, 0, sizeof(sClInConstants), constantInBuffer.get());
 		if (!checkErr(err, "CommandQueue::enqueueWriteBuffer(inCLConstBuffer)"))
 		{
 			emit showErrorMessage(
@@ -1628,8 +1815,8 @@ bool cOpenClEngineRenderFractal::WriteBuffersToQueue()
 	if (meshExportMode)
 	{
 		WriteLog(QString("Writing OpenCL mesh constant buffer"), 2);
-		err = clQueues.at(0)->enqueueWriteBuffer(*inCLConstMeshExportBuffer[0].data(), CL_TRUE, 0,
-			sizeof(sClMeshExport), constantInMeshExportBuffer.data());
+		err = clQueues.at(0)->enqueueWriteBuffer(*inCLConstMeshExportBuffer[0].get(), CL_TRUE, 0,
+			sizeof(sClMeshExport), constantInMeshExportBuffer.get());
 		if (!checkErr(err, "CommandQueue::enqueueWriteBuffer(inCLConstMeshExportBuffer)"))
 		{
 			emit showErrorMessage(QObject::tr("Cannot enqueue writing OpenCL %1")
@@ -1679,6 +1866,7 @@ bool cOpenClEngineRenderFractal::ReadBuffersFromQueue()
 	WriteLog(QString("Reading OpenCL buffers"), 3);
 	for (int d = 0; d < hardware->getEnabledDevices().size(); d++)
 	{
+		if (d > 0 && (meshExportMode || distanceMode)) break;
 		if (!cOpenClEngine::ReadBuffersFromQueue(d)) return false;
 	}
 	return true;
@@ -1707,7 +1895,7 @@ bool cOpenClEngineRenderFractal::PrepareBufferForBackground(sRenderData *renderD
 	quint64 texWidth = renderData->textures.backgroundTexture.Width();
 	quint64 texHeight = renderData->textures.backgroundTexture.Height();
 
-	backgroungImageBuffer.reset(new cl_uchar4[texWidth * texHeight]);
+	backgroundImageBuffer.resize(texWidth * texHeight);
 	quint64 backgroundImage2DWidth = texWidth;
 	quint64 backgroundImage2DHeight = texHeight;
 
@@ -1715,29 +1903,30 @@ bool cOpenClEngineRenderFractal::PrepareBufferForBackground(sRenderData *renderD
 	{
 		for (quint64 x = 0; x < texWidth; x++)
 		{
-			sRGBA16 pixel = renderData->textures.backgroundTexture.FastPixel(x, y);
-			backgroungImageBuffer[x + y * texWidth].s[0] = pixel.R / 256;
-			backgroungImageBuffer[x + y * texWidth].s[1] = pixel.G / 256;
-			backgroungImageBuffer[x + y * texWidth].s[2] = pixel.B / 256;
-			backgroungImageBuffer[x + y * texWidth].s[3] = CL_UCHAR_MAX;
+			sRGBFloat pixel = renderData->textures.backgroundTexture.FastPixel(x, y);
+			backgroundImageBuffer[x + y * texWidth].s[0] = pixel.R;
+			backgroundImageBuffer[x + y * texWidth].s[1] = pixel.G;
+			backgroundImageBuffer[x + y * texWidth].s[2] = pixel.B;
+			backgroundImageBuffer[x + y * texWidth].s[3] = 1.0f;
 		}
 	}
 
 	for (int d = 0; d < hardware->getEnabledDevices().size(); d++)
 	{
 		cl_int err;
-		backgroundImage2D.append(QSharedPointer<cl::Image2D>(
+		backgroundImage2D.append(std::shared_ptr<cl::Image2D>(
 			new cl::Image2D(*hardware->getContext(d), CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-				cl::ImageFormat(CL_RGBA, CL_UNORM_INT8), backgroundImage2DWidth, backgroundImage2DHeight,
-				backgroundImage2DWidth * sizeof(cl_uchar4), backgroungImageBuffer.data(), &err)));
+				cl::ImageFormat(CL_RGBA, CL_FLOAT), backgroundImage2DWidth, backgroundImage2DHeight,
+				backgroundImage2DWidth * sizeof(cl_float4), backgroundImageBuffer.data(), &err)));
 		if (!checkErr(err, "cl::Image2D(...backgroundImage...)")) return false;
 	}
 	return true;
 }
 
 // render function for mesh export
-bool cOpenClEngineRenderFractal::Render(double *distances, double *colors, int sliceIndex,
-	bool *stopRequest, sRenderData *renderData, size_t dataOffset)
+bool cOpenClEngineRenderFractal::Render(std::vector<double> *distances, std::vector<double> *colors,
+	std::vector<int> *iterations, int sliceIndex, bool *stopRequest, sRenderData *renderData,
+	size_t dataOffset)
 {
 	Q_UNUSED(renderData);
 	Q_UNUSED(stopRequest);
@@ -1767,19 +1956,47 @@ bool cOpenClEngineRenderFractal::Render(double *distances, double *colors, int s
 		{
 			size_t address = x + y * constantInMeshExportBuffer->sliceWidth;
 			double distance = (reinterpret_cast<cl_float *>(
-				outputBuffers[0][outputMeshDistancesIndex].ptr.data()))[address];
-			distances[address + dataOffset] = distance;
+				outputBuffers[0][outputMeshDistancesIndex].ptr.get()))[address];
+			(*distances)[address + dataOffset] = distance;
 
 			if (colors)
 			{
 				double color = (reinterpret_cast<cl_float *>(
-					outputBuffers[0][outputMeshColorsIndex].ptr.data()))[address];
-				colors[address + dataOffset] = color;
+					outputBuffers[0][outputMeshColorsIndex].ptr.get()))[address];
+				(*colors)[address + dataOffset] = color;
+			}
+
+			if (iterations)
+			{
+				int iters = (reinterpret_cast<cl_int *>(
+					outputBuffers[0][outputMeshIterationsIndex].ptr.get()))[address];
+				(*iterations)[address + dataOffset] = iters;
 			}
 		}
 	}
 
 	return true;
+}
+
+float cOpenClEngineRenderFractal::CalculateDistance(CVector3 point)
+{
+	pointToCalculateDistance = {{cl_float(point.x), cl_float(point.y), cl_float(point.z)}};
+
+	// writing data to queue
+	if (!WriteBuffersToQueue()) return false;
+
+	// assign parameters to kernel
+	if (!AssignParametersToKernel(0)) return false;
+
+	// processing queue
+	if (!ProcessQueue(0, 0, 1, 1)) return false;
+
+	if (!ReadBuffersFromQueue()) return false;
+
+	float distance =
+		(reinterpret_cast<cl_float *>(outputBuffers[0][outputMeshDistancesIndex].ptr.get()))[0];
+
+	return distance;
 }
 
 void cOpenClEngineRenderFractal::SetMeshExportParameters(const sClMeshExport *meshParams)

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -42,10 +42,10 @@
 #ifndef MANDELBULBER2_QT_COMMON_MY_WIDGET_WRAPPER_H_
 #define MANDELBULBER2_QT_COMMON_MY_WIDGET_WRAPPER_H_
 
+#include <memory>
+
 #include <QMenu>
 #include <QWidget>
-#include <QtCore>
-#include <QtGui>
 
 // forward declarations
 class cParameterContainer;
@@ -65,7 +65,7 @@ public:
 		widget = referenceWidget;
 	};
 
-	void AssignParameterContainer(cParameterContainer *container)
+	void AssignParameterContainer(std::shared_ptr<cParameterContainer> container)
 	{
 		if (!parameterContainer)
 		{
@@ -92,7 +92,7 @@ public:
 
 protected:
 	~CommonMyWidgetWrapper() = default;
-	cParameterContainer *parameterContainer;
+	std::shared_ptr<cParameterContainer> parameterContainer;
 	QString parameterName;
 	bool gotDefault;
 	QWidget *widget;

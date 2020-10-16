@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018 Mandelbulber Team        §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -143,11 +143,14 @@ float3 BackgroundShader(__constant sClInConstants *consts, sRenderData *renderDa
 	if (consts->params.mainLightEnable)
 	{
 
-		float light = (dot(viewVectorNorm, input->lightVect) - 1.0f) * 360.0f
+		float light = -(dot(viewVectorNorm, input->lightVect) - 1.0f) * 360.0f
 									/ consts->params.mainLightVisibilitySize;
-		light = 1.0f / (1.0f + pow(light, 6.0f)) * consts->params.mainLightVisibility
-						* consts->params.mainLightIntensity;
+		light = 1.0f / (1.0f + pow(light, 6.0f * consts->params.mainLightContourSharpness))
+						* consts->params.mainLightVisibility * consts->params.mainLightIntensity;
 		pixel += light * consts->params.mainLightColour;
 	}
+
+	// pixel = (exp(pixel * 5.0f) - 1.0f);
+
 	return pixel;
 }

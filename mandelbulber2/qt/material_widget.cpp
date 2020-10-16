@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2016-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2016-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -48,7 +48,8 @@
 #include "src/material.h"
 #include "src/settings.hpp"
 #include "src/synchronize_interface.hpp"
-#include "src/system.hpp"
+#include "src/system_data.hpp"
+#include "src/system_directories.hpp"
 
 cMaterialWidget::cMaterialWidget(QWidget *parent)
 		: cThumbnailWidget(
@@ -72,11 +73,11 @@ void cMaterialWidget::Init()
 	previewWidth = systemData.GetPreferredThumbnailSize();
 	previewHeight = systemData.GetPreferredThumbnailSize();
 
-	timerPeriodicRefresh = new QTimer(parent());
+	timerPeriodicRefresh = new QTimer(this);
 	timerPeriodicRefresh->setSingleShot(true);
 	connect(timerPeriodicRefresh, SIGNAL(timeout()), this, SLOT(slotPeriodicRender()));
 
-	timerPeriodicUpdateData = new QTimer(parent());
+	timerPeriodicUpdateData = new QTimer(this);
 	timerPeriodicUpdateData->setSingleShot(true);
 	connect(timerPeriodicUpdateData, SIGNAL(timeout()), this, SLOT(slotPeriodicUpdateData()));
 	timerPeriodicUpdateData->start(100);
@@ -96,7 +97,7 @@ cMaterialWidget::~cMaterialWidget()
 }
 
 void cMaterialWidget::AssignMaterial(
-	cParameterContainer *_params, int materialIndex, QWidget *_materialEditorWidget)
+	std::shared_ptr<cParameterContainer> _params, int materialIndex, QWidget *_materialEditorWidget)
 {
 	paramsHandle = _params;
 	paramsCopy = *_params;
@@ -113,18 +114,18 @@ void cMaterialWidget::InitializeData()
 		QElapsedTimer timerAssignData;
 		timerAssignData.start();
 
-		cParameterContainer params;
-		cFractalContainer fractal;
+		std::shared_ptr<cParameterContainer> params(new cParameterContainer());
+		std::shared_ptr<cFractalContainer> fractal(new cFractalContainer());
 
-		params.SetContainerName("material");
-		InitParams(&params);
+		params->SetContainerName("material");
+		InitParams(params);
 
 		for (int i = 0; i < NUMBER_OF_FRACTALS; i++)
 		{
-			fractal.at(i).SetContainerName(QString("fractal") + QString::number(i));
-			InitFractalParams(&fractal.at(i));
+			fractal->at(i)->SetContainerName(QString("fractal") + QString::number(i));
+			InitFractalParams(fractal->at(i));
 		}
-		InitMaterialParams(1, &params);
+		InitMaterialParams(1, params);
 
 		if (paramsCopy.IfExists(cMaterial::Name("is_defined", actualMaterialIndex)))
 		{
@@ -134,33 +135,33 @@ void cMaterialWidget::InitializeData()
 			{
 				cOneParameter parameter = paramsCopy.GetAsOneParameter(
 					cMaterial::Name(cMaterial::paramsList.at(i), actualMaterialIndex));
-				params.SetFromOneParameter(cMaterial::Name(cMaterial::paramsList.at(i), 1), parameter);
+				params->SetFromOneParameter(cMaterial::Name(cMaterial::paramsList.at(i), 1), parameter);
 			}
 
-			params.Set("camera", CVector3(1.5, -2.5, 0.7));
-			params.Set("raytraced_reflections", true);
-			params.Set("N", 10);
-			params.Set("detail_level", 0.2);
-			params.Set("smoothness", 5.0);
-			fractal.at(0).Set("power", 5);
-			params.Set("julia_mode", true);
-			params.Set("textured_background", true);
-			params.Set("file_background", QDir::toNativeSeparators(systemData.sharedDir + "textures"
-																														 + QDir::separator() + "grid.png"));
-			params.Set("mat1_texture_scale", CVector3(1.0, 1.0, 1.0));
-			params.Set("mat1_displacement_texture_height", 0.01);
-			params.Set("main_light_intensity", 1.2);
-			params.Set("shadows_enabled", false);
+			params->Set("camera", CVector3(1.5, -2.5, 0.7));
+			params->Set("raytraced_reflections", true);
+			params->Set("N", 3);
+			params->Set("DE_thresh", 0.1);
+			params->Set("constant_DE_threshold", true);
+			fractal->at(0)->Set("power", 5);
+			params->Set("textured_background", true);
+			params->Set("file_background",
+				QDir::toNativeSeparators(
+					systemDirectories.sharedDir + "textures" + QDir::separator() + "grid.png"));
+			params->Set("mat1_texture_scale", CVector3(1.0, 1.0, 1.0));
+			params->Set("mat1_displacement_texture_height", 0.01);
+			params->Set("main_light_intensity", 1.2);
+			params->Set("shadows_enabled", false);
 		}
 		else
 		{
-			params.Set("camera", CVector3(1.5, -2.5, 0.7));
-			params.Set("fractal_enable_1", false);
-			params.Set("textured_background", true);
-			params.Set("file_background",
-				QDir::toNativeSeparators(
-					systemData.sharedDir + "textures" + QDir::separator() + "material is not defined.png"));
-			params.Set("textured_background_map_type", int(params::mapFlat));
+			params->Set("camera", CVector3(1.5, -2.5, 0.7));
+			params->Set("fractal_enable_1", false);
+			params->Set("textured_background", true);
+			params->Set("file_background",
+				QDir::toNativeSeparators(systemDirectories.sharedDir + "textures" + QDir::separator()
+																 + "material is not defined.png"));
+			params->Set("textured_background_map_type", int(params::mapFlat));
 		}
 
 		// call parent assignation
@@ -220,10 +221,10 @@ void cMaterialWidget::AssignMaterial(const QString &text, int materialIndex)
 {
 	cSettings settings(cSettings::formatCondensedText);
 	settings.LoadFromString(text);
-	cParameterContainer params;
-	InitMaterialParams(materialIndex, &params);
-	settings.Decode(&params, nullptr);
-	AssignMaterial(&params, materialIndex);
+	std::shared_ptr<cParameterContainer> params(new cParameterContainer);
+	InitMaterialParams(materialIndex, params);
+	settings.Decode(params, nullptr);
+	AssignMaterial(params, materialIndex);
 }
 
 void cMaterialWidget::slotMaterialChanged()

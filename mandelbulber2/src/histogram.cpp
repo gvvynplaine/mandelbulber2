@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2015-16 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2015-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -39,46 +39,26 @@ cHistogram::cHistogram()
 	histSize = 0;
 	count = 0;
 	sum = 0;
-	data = nullptr;
 }
 
 cHistogram::cHistogram(int size)
 {
-	data = nullptr;
 	Alloc(size);
 }
 
 cHistogram::~cHistogram()
 {
-	if (data) delete[] data;
-	data = nullptr;
-}
-
-cHistogram::cHistogram(const cHistogram &source)
-{
-	data = nullptr;
-	Copy(source);
-}
-
-cHistogram &cHistogram::operator=(const cHistogram &source)
-{
-	if (this != &source)
-	{
-		Copy(source);
-	}
-	return *this;
+	// nothing to delete
 }
 
 void cHistogram::Resize(int size)
 {
-	if (data) delete[] data;
-	data = nullptr;
 	Alloc(size);
 }
 
 void cHistogram::Alloc(int size)
 {
-	data = new long[size + 1];
+	data.resize(size + 1);
 	histSize = size;
 	count = 0;
 	sum = 0;
@@ -97,19 +77,6 @@ long cHistogram::GetHist(int index) const
 	else
 	{
 		return 0;
-	}
-}
-
-void cHistogram::Copy(const cHistogram &source)
-{
-	Resize(source.GetSize());
-
-	count = source.count;
-	sum = source.sum;
-
-	for (int i = 0; i <= histSize; i++)
-	{
-		data[i] = source.data[i];
 	}
 }
 

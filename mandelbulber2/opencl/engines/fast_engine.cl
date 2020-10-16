@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -33,7 +33,7 @@
  */
 
 // defined to force recompilation of kernels on NVidia cards with new releases
-#define MANDELBULBER_VERSION 2.20.0
+#define MANDELBULBER_VERSION 2.23
 
 int GetInteger(int byte, __global char *array)
 {
@@ -301,13 +301,13 @@ kernel void fractal3D(__global sClPixel *out, __global char *inBuff,
 											 * sin(10.0f * sin(atan2(viewVector.z, length(viewVector.xy)) * 10.0f));
 			grid *= grid;
 			colour = grid;
-#else	// not STEREOSCOPIC
+#else	 // not STEREOSCOPIC
 		colour = (float3){0.0f, 0.0f, screenPoint.y / height};
 		alpha = 0.0f;
 #endif // STEREOSCOPIC
 		}
 
-		float glow = count / 500.0 * consts->params.DEFactor;
+		float glow = count / 500.0f * consts->params.DEFactor;
 
 #ifdef STEREO_REYCYAN
 		if (eye == 0)
@@ -337,7 +337,7 @@ kernel void fractal3D(__global sClPixel *out, __global char *inBuff,
 		}
 	} // next exe
 
-#else	// no STEREO_REYCYAN
+#else	 // no STEREO_REYCYAN
 
 	pixel.R = colour.s0 + glow;
 	pixel.G = colour.s1 * glow * 10.0f;

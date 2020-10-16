@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-18 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -35,6 +35,8 @@
 #ifndef MANDELBULBER2_SRC_RENDER_SSAO_H_
 #define MANDELBULBER2_SRC_RENDER_SSAO_H_
 
+#include <memory>
+
 #include <QObject>
 
 #include "region.hpp"
@@ -48,7 +50,8 @@ class cRenderSSAO : public QObject
 {
 	Q_OBJECT
 public:
-	cRenderSSAO(const sParamRender *_params, const sRenderData *_renderData, cImage *_image);
+	cRenderSSAO(std::shared_ptr<const sParamRender> _params,
+		std::shared_ptr<const sRenderData> _renderData, std::shared_ptr<cImage> _image);
 	~cRenderSSAO() override;
 
 	void SetRegion(const cRegion<int> &_region);
@@ -58,7 +61,7 @@ public:
 private:
 	const sParamRender *params;
 	const sRenderData *data;
-	cImage *image;
+	std::shared_ptr<cImage> image;
 	cRegion<int> region;
 	double qualityFactor;
 	int progressive;

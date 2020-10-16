@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2017-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2017-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -33,7 +33,7 @@
  */
 
 // defined to force recompilation of kernels on NVidia cards with new releases
-#define MANDELBULBER_VERSION 2.20.0
+#define MANDELBULBER_VERSION 2.23
 
 int GetInteger(int byte, __global char *array)
 {
@@ -43,7 +43,8 @@ int GetInteger(int byte, __global char *array)
 
 //------------------ MAIN RENDER FUNCTION --------------------
 kernel void fractal3D(__global sClPixel *out, __global char *inBuff,
-	__constant sClInConstants *consts, image2d_t image2dBackground, int initRandomSeed)
+	__constant sClInConstants *consts, image2d_t image2dBackground, __global uchar *perlinNoiseSeeds,
+	int initRandomSeed)
 {
 	// get actual pixel
 	const int imageX = get_global_id(0);
@@ -280,7 +281,7 @@ kernel void fractal3D(__global sClPixel *out, __global char *inBuff,
 
 		StereoViewVectorCorrection(consts->params.stereoInfiniteCorrection * stereoIntensity, &rot,
 			&rotInv, eye, consts->params.stereoSwapEyes, &viewVector);
-#else	// PERSP_FISH_EYE_CUT
+#else	 // PERSP_FISH_EYE_CUT
 		float3 eyePosition = 0.0f;
 		float3 sideVector = normalize(cross(viewVector, consts->params.topVector));
 		float3 rightVector =
@@ -506,8 +507,7 @@ kernel void fractal3D(__global sClPixel *out, __global char *inBuff,
 			if (found)
 			{
 				color = ObjectShader(consts, &renderData, &shaderInputData, &calcParam, &surfaceColor,
-					&specular, &iridescence, &gradients);
-				alpha = 1.0f;
+					&specular, &iridescence, &alpha, &gradients);
 			}
 			else
 			{
@@ -566,7 +566,7 @@ kernel void fractal3D(__global sClPixel *out, __global char *inBuff,
 		}
 	} // next exe
 
-#else	// no STEREO_REYCYAN
+#else	 // no STEREO_REYCYAN
 
 	pixel.R = color4.s0;
 	pixel.G = color4.s1;

@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018 Mandelbulber Team        §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -44,27 +44,29 @@ sRGBAfloat cRenderWorker::MainShadow(const sShaderInputData &input) const
 	// starting point
 	CVector3 point2;
 
+	bool cloudMode = params->cloudsEnable;
+
 	double factor = input.delta / params->resolution;
 	if (!params->penetratingLights) factor = params->viewDistanceMax;
 	double dist;
 
 	double DEFactor = params->DEFactor;
 	if (params->iterFogEnabled || params->volumetricLightEnabled[0]) DEFactor = 1.0;
+	if (cloudMode) DEFactor = params->DEFactor * params->volumetricLightDEFactor;
 
 	// double start = input.delta;
 	double start = input.distThresh;
 	if (params->interiorMode) start = input.distThresh * DEFactor;
 
-	double opacity;
 	double shadowTemp = 1.0;
 	double iterFogSum = 0.0f;
 
 	double softRange = tan(params->shadowConeAngle / 180.0 * M_PI);
 	double maxSoft = 0.0;
 
-	const bool bSoft = !params->iterFogEnabled && !params->common.iterThreshMode
-										 && !params->interiorMode && softRange > 0.0
-										 && !(params->monteCarloSoftShadows && params->DOFMonteCarlo);
+	bool bSoft = !cloudMode && !params->iterFogEnabled && !params->common.iterThreshMode
+							 && !params->interiorMode && softRange > 0.0
+							 && !(params->monteCarloSoftShadows && params->DOFMonteCarlo);
 
 	CVector3 shadowVect = input.lightVect;
 	if (params->DOFMonteCarlo && params->monteCarloSoftShadows)
@@ -78,12 +80,16 @@ sRGBAfloat cRenderWorker::MainShadow(const sShaderInputData &input) const
 		shadowVect += randomSphere;
 	}
 
-	for (double i = start; i < factor; i += dist * DEFactor)
+	int count = 0;
+	double step = 0.0f;
+	double lastDistanceToClouds = 1e6f;
+
+	for (double i = start; i < factor; i += step)
 	{
 		point2 = input.point + shadowVect * i;
 
 		double dist_thresh;
-		if (params->iterFogEnabled || params->volumetricLightEnabled[0])
+		if (params->iterFogEnabled || params->volumetricLightEnabled[0] || cloudMode)
 		{
 			dist_thresh = CalcDistThresh(point2);
 		}
@@ -119,16 +125,22 @@ sRGBAfloat cRenderWorker::MainShadow(const sShaderInputData &input) const
 
 		if (params->iterFogEnabled)
 		{
-			opacity = IterOpacity(dist * DEFactor, distanceOut.iters, params->N,
-				params->iterFogOpacityTrim, params->iterFogOpacityTrimHigh, params->iterFogOpacity);
+			double opacity = IterOpacity(step, distanceOut.iters, params->N, params->iterFogOpacityTrim,
+				params->iterFogOpacityTrimHigh, params->iterFogOpacity);
 			opacity *= (factor - i) / factor;
 			opacity = qMin(opacity, 1.0);
 			iterFogSum = opacity + (1.0 - opacity) * iterFogSum;
 		}
-		else
+		if (cloudMode)
 		{
-			opacity = 0.0;
+			double distanceToClouds = 0.0f;
+			double opacity = CloudOpacity(point2, dist, dist_thresh, &distanceToClouds) * step;
+			lastDistanceToClouds = distanceToClouds;
+			opacity *= (factor - i) / factor;
+			opacity = qMin(opacity, 1.0);
+			iterFogSum = opacity + (1.0 - opacity) * iterFogSum;
 		}
+
 		shadowTemp = 1.0 - iterFogSum;
 
 		if (dist < dist_thresh || shadowTemp < 0.0)
@@ -138,6 +150,12 @@ sRGBAfloat cRenderWorker::MainShadow(const sShaderInputData &input) const
 			if (shadowTemp < 0.0) shadowTemp = 0.0;
 			break;
 		}
+
+		step = std::min(dist, lastDistanceToClouds) * DEFactor;
+		step = std::max(step, 1e-15);
+
+		count++;
+		if (count > MAX_RAYMARCHING) break;
 	}
 	if (!bSoft)
 	{

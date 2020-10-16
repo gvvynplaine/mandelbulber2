@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -43,6 +43,10 @@
 
 #include <qmessagebox.h>
 
+#include <memory>
+
+#include <QThread>
+
 #include "algebra.hpp"
 #include "animation_frames.hpp"
 #include "error_message.hpp"
@@ -82,9 +86,10 @@ public:
 		int unrenderedTotalBeforeRender;
 	};
 
-	cFlightAnimation(cInterface *_interface, cAnimationFrames *_frames, cImage *_image,
-		QWidget *_imageWidget, cParameterContainer *_params, cFractalContainer *_fractal,
-		QObject *parent = nullptr);
+	cFlightAnimation(cInterface *_interface, std::shared_ptr<cAnimationFrames> _frames,
+		std::shared_ptr<cImage> _image, QWidget *_imageWidget,
+		std::shared_ptr<cParameterContainer> _params, std::shared_ptr<cFractalContainer> _fractal,
+		QObject *parent);
 	void RecordFlight(bool continueRecording);
 	bool RenderFlight(bool *stopRequest);
 	void RenderFrame(int index) const;
@@ -130,7 +135,7 @@ private:
 	int AddVariableToTable(
 		const cAnimationFrames::sParameterDescription &parameterDescription, int index);
 	int AddColumn(const cAnimationFrames::sAnimationFrame &frame, int indexOfExistingColumn = -1);
-	QSharedPointer<cRenderJob> PrepareRenderJob(bool *stopRequest);
+	std::shared_ptr<cRenderJob> PrepareRenderJob(bool *stopRequest);
 	bool InitFrameRanges(sFrameRanges *frameRanges);
 	void InitFrameMarkers(const sFrameRanges &frameRanges);
 	void CheckWhichFramesAreAlreadyRendered(const sFrameRanges &frameRanges);
@@ -143,11 +148,11 @@ private:
 
 	cInterface *mainInterface;
 	Ui::cDockAnimation *ui;
-	cAnimationFrames *frames;
-	cImage *image;
+	std::shared_ptr<cAnimationFrames> frames;
+	std::shared_ptr<cImage> image;
 	RenderedImage *imageWidget;
-	cParameterContainer *params;
-	cFractalContainer *fractalParams;
+	std::shared_ptr<cParameterContainer> params;
+	std::shared_ptr<cFractalContainer> fractalParams;
 	QStringList tableRowNames;
 	QVector<int> parameterRows; // position of parameter in table
 	QVector<int> rowParameter;	// index of parameter in row
@@ -184,8 +189,8 @@ signals:
 	void notifyRenderFlightRenderStatus(QString text, QString progressText);
 
 	void SendNetRenderSetup(int clientIndex, QList<int> startingPositions);
-	void NetRenderCurrentAnimation(
-		const cParameterContainer &settings, const cFractalContainer &fractal, bool isFlight);
+	void NetRenderCurrentAnimation(std::shared_ptr<const cParameterContainer> settings,
+		std::shared_ptr<const cFractalContainer> fractal, bool isFlight);
 	void NetRenderConfirmRendered(int frameIndex, int toDoListLength);
 	void NetRenderSendFramesToDoList(int clientIndex, QList<int> frameNumbers);
 	void NetRenderAddFileToSender(QString);

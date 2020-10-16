@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2018-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2018-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -32,8 +32,17 @@
  * cRenderWorker::VolumetricShader method - calculates volumetric shaders
  */
 
+#include <cmath>
+
+#include "algebra.hpp"
+#include "ao_modes.h"
+#include "calculate_distance.hpp"
+#include "calculation_mode.h"
+#include "color_structures.hpp"
 #include "compute_fractal.hpp"
 #include "fractparams.hpp"
+#include "lights.hpp"
+#include "nine_fractals.hpp"
 #include "render_data.hpp"
 #include "render_worker.hpp"
 
@@ -70,32 +79,101 @@ sRGBAfloat cRenderWorker::VolumetricShader(
 
 	// qDebug() << "Start volumetric shader &&&&&&&&&&&&&&&&&&&&";
 
-	sShaderInputData input2 = input;
-	for (int index = input.stepCount - 1; index > 0; index--)
+	int numberOfSteps;
+	bool recalcStepsMode;
+	double scan;
+	double lastCloudDistance = params->cloudsPeriod;
+	bool end = false;
+
+	if (!qFuzzyCompare(params->volumetricLightDEFactor, 1.0) || params->cloudsEnable)
 	{
-		double step = input.stepBuff[index].step;
-		double distance = input.stepBuff[index].distance;
-		CVector3 point = input.stepBuff[index].point;
-		totalStep += step;
+		numberOfSteps = MAX_RAYMARCHING;
+		recalcStepsMode = true;
+		scan = CalcDistThresh(input.point);
+	}
+	else
+	{
+		numberOfSteps = input.stepCount - 1;
+		recalcStepsMode = false;
+	}
 
-		input2.point = point;
-		input2.distThresh = input.stepBuff[index].distThresh;
-		input2.delta = CalcDelta(point);
+	sShaderInputData input2 = input;
+	for (int index = numberOfSteps; index > 0; index--)
+	{
+		double step;
+		double distance;
+		CVector3 point;
+		int iterations = 0;
 
-		// qDebug() << "i" << index << "dist" << distance << "iters" << input.stepBuff[index].iters <<
-		// "distThresh" << input2.distThresh << "step" << step << "point" << point.Debug();
-
-		if (totalStep < 1e-10 * CalcDistThresh(point)) // if two steps are the same
+		// distance, points and steps are recalculated when custom DE step is usew=d
+		if (recalcStepsMode)
 		{
-			continue;
+			point = input.point - input.viewVector * scan;
+
+			input2.point = point;
+			input2.distThresh = CalcDistThresh(point);
+			input2.delta = CalcDelta(point);
+
+			sDistanceOut distanceOut;
+			sDistanceIn distanceIn(point, input2.distThresh, false);
+			distance = CalculateDistance(*params, *fractal, distanceIn, &distanceOut, data);
+			iterations = distanceOut.iters;
+
+			step = (min(distance, lastCloudDistance) - 0.5 * input2.distThresh) * params->DEFactor
+						 * params->volumetricLightDEFactor;
+
+			step *= (1.0 - Random(1000) / 10000.0);
+
+			if (params->advancedQuality)
+			{
+				step = clamp(step, params->absMinMarchingStep, params->absMaxMarchingStep);
+
+				if (input2.distThresh > params->absMinMarchingStep)
+					step = clamp(step, params->relMinMarchingStep * input2.distThresh,
+						params->relMaxMarchingStep * input2.distThresh);
+			}
+
+			step = max(step, input2.distThresh);
+
+			end = false;
+			if (step > input.depth - scan)
+			{
+				step = input.depth - scan;
+				end = true;
+			}
+			scan += step;
+
+			// qDebug() << point.Debug() << distance << step << input.depth - scan << lastCloudDistance;
 		}
-		step = totalStep;
-		totalStep = 0.0;
+		// distance, points and steps are taken from arrays
+		else
+		{
+			step = input.stepBuff[index].step;
+			distance = input.stepBuff[index].distance;
+			point = input.stepBuff[index].point;
+			iterations = input.stepBuff[index].iters;
+
+			totalStep += step;
+
+			input2.point = point;
+			input2.distThresh = input.stepBuff[index].distThresh;
+			input2.delta = CalcDelta(point);
+
+			// qDebug() << "i" << index << "dist" << distance << "iters" << input.stepBuff[index].iters <<
+			// "distThresh" << input2.distThresh << "step" << step << "point" << point.Debug();
+
+			if (totalStep < 1e-10 * CalcDistThresh(point)) // if two steps are the same
+			{
+				continue;
+			}
+			step = totalStep;
+			totalStep = 0.0;
+		}
 
 		//------------------- glow
 		if (params->glowEnabled && input.stepCount > 0)
 		{
-			float glowOpacity = glow / input.stepCount;
+			float glowOpacity = glow / input.stepCount * params->volumetricLightDEFactor;
 			if (glowOpacity > 1.0f) glowOpacity = 1.0f;
 			output.R = glowOpacity * glowR + (1.0f - glowOpacity) * output.R;
 			output.G = glowOpacity * glowG + (1.0f - glowOpacity) * output.G;
@@ -103,71 +181,6 @@ sRGBAfloat cRenderWorker::VolumetricShader(
 			output.A += glowOpacity;
 		}
 		// qDebug() << "step" << step;
-		//------------------ visible light
-		if (data->lights.IsAnyLightEnabled() && params->auxLightVisibility > 0)
-		{
-			for (int i = 0; i < numberOfLights; ++i)
-			{
-				const sLight *light = data->lights.GetLight(i);
-				if (light->enabled && light->intensity > 0)
-				{
-					double lastMiniSteps = -1.0;
-					double miniStep;
-
-					for (double miniSteps = 0.0; miniSteps < step; miniSteps += miniStep)
-					{
-						CVector3 lightDistVect = point - input.viewVector * miniSteps - light->position;
-						double lightDist = lightDistVect.Length();
-						double lightSize = sqrt(light->intensity) * params->auxLightVisibilitySize;
-
-						double distToLightSurface = lightDist - lightSize;
-						if (distToLightSurface < 0.0) distToLightSurface = 0.0;
-
-						miniStep = 0.1 * (distToLightSurface + 0.1 * distToLightSurface);
-						if (miniStep > step - miniSteps) miniStep = step - miniSteps;
-						if (miniStep < step * 0.001) miniStep = step * 0.001;
-
-						double r2 = lightDist / lightSize;
-						double bellFunction = 1.0 / (1.0 + pow(r2, 4.0));
-						float lightDensity = miniStep * bellFunction * params->auxLightVisibility / lightSize;
-
-						output.R += lightDensity * light->colour.R;
-						output.G += lightDensity * light->colour.G;
-						output.B += lightDensity * light->colour.B;
-						output.A += lightDensity;
-
-						if (miniSteps == lastMiniSteps)
-						{
-							// qWarning() << "Dead computation\n"
-							//		<< "\pointN:" << (point - input.viewVector * miniSteps).Debug();
-							break;
-						}
-						lastMiniSteps = miniSteps;
-					}
-				}
-			}
-		}
-
-		// fake lights (orbit trap)
-		if (params->fakeLightsEnabled)
-		{
-			sFractalIn fractIn(point, params->minN, params->N, &params->common, -1, false);
-			sFractalOut fractOut;
-			Compute<fractal::calcModeOrbitTrap>(*fractal, fractIn, &fractOut);
-			float r = fractOut.orbitTrapR;
-			r = sqrtf(1.0f / (r + 1.0e-20f));
-			float fakeLight = 1.0f
-												/ (powf(r, 10.0f / params->fakeLightsVisibilitySize)
-															* powf(10.0f, 10.0f / params->fakeLightsVisibilitySize)
-														+ 0.1f);
-			output.R +=
-				fakeLight * float(step) * params->fakeLightsVisibility * params->fakeLightsColor.R;
-			output.G +=
-				fakeLight * float(step) * params->fakeLightsVisibility * params->fakeLightsColor.G;
-			output.B +=
-				fakeLight * float(step) * params->fakeLightsVisibility * params->fakeLightsColor.B;
-			output.A += fakeLight * float(step) * params->fakeLightsVisibility;
-		}
 
 		//---------------------- volumetric lights with shadows in fog
 
@@ -252,18 +265,87 @@ sRGBAfloat cRenderWorker::VolumetricShader(
 			output.A = fogDensity + (1.0f - fogDensity) * output.A;
 		}
 
+		//-------------- perlin noise clouds
+		double cloudsOpacity;
+		if (params->cloudsEnable)
+		{
+			double distanceToClouds = 0.0;
+			double cloud = CloudOpacity(point, distance, input2.delta, &distanceToClouds);
+			double opacity = cloud * step;
+			// qDebug() << cloud;
+
+			lastCloudDistance = distanceToClouds;
+
+			sRGBAfloat newColour(0.0, 0.0, 0.0, 0.0);
+			sRGBAfloat shadowOutputTemp(1.0, 1.0, 1.0, 1.0);
+
+			double ambient = params->cloudsAmbientLight;
+			double nAmbient = 1.0 - params->cloudsAmbientLight;
+
+			if (opacity > 0)
+			{
+				if (params->mainLightEnable && params->mainLightIntensity > 0.0f)
+				{
+					if (params->cloudsCastShadows)
+					{
+						shadowOutputTemp = MainShadow(input2);
+					}
+					newColour.R += (shadowOutputTemp.R * nAmbient + ambient) * params->mainLightColour.R
+												 * params->mainLightIntensity;
+					newColour.G += (shadowOutputTemp.G * nAmbient + ambient) * params->mainLightColour.G
+												 * params->mainLightIntensity;
+					newColour.B += (shadowOutputTemp.B * nAmbient + ambient) * params->mainLightColour.B
+												 * params->mainLightIntensity;
+				}
+
+				for (int l = 1; l < 5; l++)
+				{
+					const sLight *light = data->lights.GetLight(l - 1);
+					if (light->enabled)
+					{
+						CVector3 lightVectorTemp = light->position - point;
+						float distanceLight = lightVectorTemp.Length();
+						float distanceLight2 = distanceLight * distanceLight;
+						lightVectorTemp.Normalize();
+
+						float lightShadow = 1.0;
+
+						if (params->cloudsCastShadows)
+						{
+							lightShadow = AuxShadow(input2, distanceLight, lightVectorTemp, light->intensity);
+						}
+						lightShadow = lightShadow * nAmbient + ambient;
+
+						float intensity = light->intensity;
+						newColour.R += lightShadow * light->colour.R / distanceLight2 * intensity;
+						newColour.G += lightShadow * light->colour.G / distanceLight2 * intensity;
+						newColour.B += lightShadow * light->colour.B / distanceLight2 * intensity;
+					}
+				}
+			}
+
+			if (opacity > 1.0f) opacity = 1.0f;
+
+			output.R = output.R * (1.0f - opacity) + newColour.R * opacity * params->cloudsColor.R;
+			output.G = output.G * (1.0f - opacity) + newColour.G * opacity * params->cloudsColor.G;
+			output.B = output.B * (1.0f - opacity) + newColour.B * opacity * params->cloudsColor.B;
+			totalOpacity = opacity + (1.0f - opacity) * totalOpacity;
+			output.A = opacity + (1.0f - opacity) * output.A;
+
+			cloudsOpacity = cloud;
+		}
+
 		// iter fog
 		if (params->iterFogEnabled)
 		{
-			int L = input.stepBuff[index].iters;
-			float opacity = IterOpacity(step, L, params->N, params->iterFogOpacityTrim,
+			float opacity = IterOpacity(step, iterations, params->N, params->iterFogOpacityTrim,
 				params->iterFogOpacityTrimHigh, params->iterFogOpacity);
 
 			sRGBAfloat newColour(0.0, 0.0, 0.0, 0.0);
 			if (opacity > 0)
 			{
 				// fog colour
-				float iterFactor1 = (L - params->iterFogOpacityTrim)
+				float iterFactor1 = (iterations - params->iterFogOpacityTrim)
 														/ (params->iterFogColor1Maxiter - params->iterFogOpacityTrim);
 				float k = iterFactor1;
 				if (k > 1.0f) k = 1.0f;
@@ -273,7 +355,7 @@ sRGBAfloat cRenderWorker::VolumetricShader(
 				float fogColG = params->iterFogColour1.G * kn + params->iterFogColour2.G * k;
 				float fogColB = params->iterFogColour1.B * kn + params->iterFogColour2.B * k;
 
-				float iterFactor2 = (L - params->iterFogColor1Maxiter)
+				float iterFactor2 = (iterations - params->iterFogColor1Maxiter)
 														/ (params->iterFogColor2Maxiter - params->iterFogColor1Maxiter);
 				float k2 = iterFactor2;
 				if (k2 < 0.0f) k2 = 0.0;
@@ -352,11 +434,84 @@ sRGBAfloat cRenderWorker::VolumetricShader(
 			}
 		}
 
+		//------------------ visible light
+		if (data->lights.IsAnyLightEnabled() && params->auxLightVisibility > 0)
+		{
+			for (int i = 0; i < numberOfLights; ++i)
+			{
+				const sLight *light = data->lights.GetLight(i);
+				if (light->enabled && light->intensity > 0)
+				{
+					double lastMiniSteps = -1.0;
+					double miniStep;
+
+					for (double miniSteps = 0.0; miniSteps < step; miniSteps += miniStep)
+					{
+						CVector3 lightDistVect = point - input.viewVector * miniSteps - light->position;
+						double lightDist = lightDistVect.Length();
+						double lightSize = sqrt(light->intensity) * params->auxLightVisibilitySize;
+
+						double distToLightSurface = lightDist - lightSize;
+						if (distToLightSurface < 0.0) distToLightSurface = 0.0;
+
+						miniStep = 0.1 * (distToLightSurface + 0.1 * distToLightSurface);
+						if (miniStep > step - miniSteps) miniStep = step - miniSteps;
+						if (miniStep < step * 0.001) miniStep = step * 0.001;
+
+						double r2 = lightDist / lightSize;
+						double bellFunction = 1.0 / (1.0 + pow(r2, 4.0));
+						float lightDensity = miniStep * bellFunction * params->auxLightVisibility / lightSize;
+
+						lightDensity *= 1.0f + params->cloudsLightsBoost * cloudsOpacity;
+
+						output.R += lightDensity * light->colour.R;
+						output.G += lightDensity * light->colour.G;
+						output.B += lightDensity * light->colour.B;
+						output.A += lightDensity;
+
+						if (miniSteps == lastMiniSteps)
+						{
+							// qWarning() << "Dead computation\n"
+							//		<< "\pointN:" << (point - input.viewVector * miniSteps).Debug();
+							break;
+						}
+						lastMiniSteps = miniSteps;
+					}
+				}
+			}
+		}
+
+		// fake lights (orbit trap)
+		if (params->fakeLightsEnabled)
+		{
+			sFractalIn fractIn(point, params->minN, params->N, &params->common, -1, false);
+			sFractalOut fractOut;
+			Compute<fractal::calcModeOrbitTrap>(*fractal, fractIn, &fractOut);
+			float r = fractOut.orbitTrapR;
+			r = sqrtf(1.0f / (r + 1.0e-20f));
+			float fakeLight = 1.0f
+												/ (powf(r, 10.0f / params->fakeLightsVisibilitySize)
+															* powf(10.0f, 10.0f / params->fakeLightsVisibilitySize)
+														+ 0.1f);
+
+			fakeLight *= 1.0f + params->cloudsLightsBoost * cloudsOpacity;
+
+			output.R +=
+				fakeLight * float(step) * params->fakeLightsVisibility * params->fakeLightsColor.R;
+			output.G +=
+				fakeLight * float(step) * params->fakeLightsVisibility * params->fakeLightsColor.G;
+			output.B +=
+				fakeLight * float(step) * params->fakeLightsVisibility * params->fakeLightsColor.B;
+			output.A += fakeLight * float(step) * params->fakeLightsVisibility;
+		}
+
 		if (totalOpacity > 1.0f) totalOpacity = 1.0f;
 		if (output.A > 1.0f) output.A = 1.0f;
 		(*opacityOut).R = totalOpacity;
 		(*opacityOut).G = totalOpacity;
 		(*opacityOut).B = totalOpacity;
+
+		if (end) break;
 
 	} // next stepCount
 

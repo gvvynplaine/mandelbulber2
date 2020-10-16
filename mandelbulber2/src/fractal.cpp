@@ -1,7 +1,7 @@
 /**
  * Mandelbulber v2, a 3D fractal generator       ,=#MKNmMMKmmßMNWy,
  *                                             ,B" ]L,,p%%%,,,§;, "K
- * Copyright (C) 2014-19 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
+ * Copyright (C) 2014-20 Mandelbulber Team     §R-==%w["'~5]m%=L.=~5N
  *                                        ,=mm=§M ]=4 yJKA"/-Nsaj  "Bw,==,,
  * This file is part of Mandelbulber.    §R.r= jw",M  Km .mM  FW ",§=ß., ,TN
  *                                     ,4R =%["w[N=7]J '"5=],""]]M,w,-; T=]M
@@ -36,11 +36,11 @@
 
 #include "algebra.hpp"
 #include "parameters.hpp"
-#include "system.hpp"
+#include "write_log.hpp"
 
-sFractal::sFractal(const cParameterContainer *container)
+sFractal::sFractal(const std::shared_ptr<cParameterContainer> container)
 {
-	// WriteLog("cFractal::cFractal(const cParameterContainer *container)");
+	// WriteLog("cFractal::cFractal(const std::shared_ptr<cParameterContainer> container)");
 	formula = fractal::none;
 
 	bulb.power = container->Get<double>("power");
@@ -265,10 +265,14 @@ sFractal::sFractal(const cParameterContainer *container)
 
 	// common parameters for transforming formulas
 	transformCommon.angle0 = container->Get<double>("transf_angle_0");
+	transformCommon.angle72 = container->Get<double>("transf_angle_72");
 	transformCommon.alphaAngleOffset = container->Get<double>("transf_alpha_angle_offset");
 	transformCommon.betaAngleOffset = container->Get<double>("transf_beta_angle_offset");
 	transformCommon.foldingValue = container->Get<double>("transf_folding_value");
 	transformCommon.foldingLimit = container->Get<double>("transf_folding_limit");
+	transformCommon.invert0 = container->Get<double>("transf_invert_0");
+	transformCommon.invert1 = container->Get<double>("transf_invert_1");
+	transformCommon.maxR2d1 = container->Get<double>("transf_maxR2_1");
 	transformCommon.multiplication = container->Get<double>("transf_multiplication");
 	transformCommon.minR0 = container->Get<double>("transf_minimum_radius_0");
 	transformCommon.minR05 = container->Get<double>("transf_minimum_radius_05");
@@ -285,8 +289,11 @@ sFractal::sFractal(const cParameterContainer *container)
 	transformCommon.offsetF0 = container->Get<double>("transf_offsetF_0");
 	transformCommon.offsetR0 = container->Get<double>("transf_offsetR_0");
 	transformCommon.offset0005 = container->Get<double>("transf_offset_0005");
+	transformCommon.offsetp05 = container->Get<double>("transf_offset_p05");
+	transformCommon.offset01 = container->Get<double>("transf_offset_01");
 	transformCommon.offset05 = container->Get<double>("transf_offset_05");
 	transformCommon.offsetA05 = container->Get<double>("transf_offsetA_05");
+	transformCommon.offsetB05 = container->Get<double>("transf_offsetB_05");
 	transformCommon.offset1 = container->Get<double>("transf_offset_1");
 	transformCommon.offsetA1 = container->Get<double>("transf_offsetA_1");
 	transformCommon.offsetR1 = container->Get<double>("transf_offsetR_1");
@@ -328,6 +335,7 @@ sFractal::sFractal(const cParameterContainer *container)
 	transformCommon.scaleA3 = container->Get<double>("transf_scaleA_3");
 	transformCommon.scaleB3 = container->Get<double>("transf_scaleB_3");
 	transformCommon.scale4 = container->Get<double>("transf_scale_4");
+	transformCommon.scale6 = container->Get<double>("transf_scale_6");
 	transformCommon.scale8 = container->Get<double>("transf_scale_8");
 
 	transformCommon.scaleMain2 = container->Get<double>("transf_scale_main_2");
@@ -336,6 +344,8 @@ sFractal::sFractal(const cParameterContainer *container)
 	transformCommon.intA = container->Get<int>("transf_int_A");
 	transformCommon.intB = container->Get<int>("transf_int_B");
 	transformCommon.int1 = container->Get<int>("transf_int_1");
+	transformCommon.intA1 = container->Get<int>("transf_intA_1");
+	transformCommon.intB1 = container->Get<int>("transf_intB_1");
 	transformCommon.int2 = container->Get<int>("transf_int_2");
 	transformCommon.int3 = container->Get<int>("transf_int_3");
 	transformCommon.int3X = container->Get<int>("transf_int_3_X");
@@ -472,6 +482,7 @@ sFractal::sFractal(const cParameterContainer *container)
 	transformCommon.offsetA200 = CVector4(container->Get<CVector3>("transf_offsetA_200"), 0.0);
 	transformCommon.offset222 = CVector4(container->Get<CVector3>("transf_offset_222"), 0.0);
 	transformCommon.offsetA222 = CVector4(container->Get<CVector3>("transf_offsetA_222"), 0.0);
+	transformCommon.offset333 = CVector4(container->Get<CVector3>("transf_offset_333"), 0.0);
 	transformCommon.power025 = CVector4(container->Get<CVector3>("transf_power_025"), 0.0);
 	transformCommon.power8 = CVector4(container->Get<CVector3>("transf_power_8"), 0.0);
 
@@ -497,9 +508,11 @@ sFractal::sFractal(const cParameterContainer *container)
 	transformCommon.vec111 = CVector4(container->Get<CVector3>("transf_vec_111"), 0.0);
 
 	// 4d vec
+	transformCommon.offsetp5555 = container->Get<CVector4>("transf_offset_p5555");
 	transformCommon.additionConstant0000 = container->Get<CVector4>("transf_addition_constant_0000");
 	transformCommon.offset0000 = container->Get<CVector4>("transf_offset_0000");
 	transformCommon.offsetA0000 = container->Get<CVector4>("transf_offsetA_0000");
+	transformCommon.offsetp5555 = container->Get<CVector4>("transf_offset_p5555");
 	transformCommon.offset1111 = container->Get<CVector4>("transf_offset_1111");
 	transformCommon.offsetA1111 = container->Get<CVector4>("transf_offsetA_1111");
 	transformCommon.offsetB1111 = container->Get<CVector4>("transf_offsetB_1111");
@@ -624,7 +637,8 @@ void sFractal::RecalculateFractalParams()
 		transformCommon.rotationVary * M_PI_180); // TODO check
 	transformCommon.sqtR = sqrt(transformCommon.minR05);
 	transformCommon.mboxFactor1 = 1.0 / transformCommon.sqtR; // for orig. abox asurf
-
+	transformCommon.inv0 = 1.0 / transformCommon.invert0;			// Invmin
+	transformCommon.inv1 = 1.0 / transformCommon.invert1;			// Invmax
 	transformCommon.maxMinR2factor = transformCommon.maxR2d1 / transformCommon.minR2p25;
 
 	// Generalized Fold Box pre calculated vectors
